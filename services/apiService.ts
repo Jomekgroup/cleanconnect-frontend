@@ -5,8 +5,9 @@ import { User } from '../types';
  * Uses environment variable if available (for Vercel deployment)
  * Falls back to localhost for local development.
  */
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL?.replace(/\/$/, '') || 'http://localhost:5000/api';
+const API_BASE_URL = `${
+  process.env.REACT_APP_API_URL?.replace(/\/$/, '') || 'http://localhost:5000'
+}/api`;
 
 /**
  * Retrieves the authentication token from localStorage.
@@ -44,7 +45,6 @@ const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   }
 
   if (response.status === 204) return null;
-
   return response.json();
 };
 
@@ -94,7 +94,10 @@ export const apiService = {
     apiFetch(`/bookings/${bookingId}/complete`, { method: 'POST' }),
 
   submitReview: async (bookingId: string, reviewData: any) =>
-    apiFetch(`/bookings/${bookingId}/review`, { method: 'POST', body: JSON.stringify(reviewData) }),
+    apiFetch(`/bookings/${bookingId}/review`, {
+      method: 'POST',
+      body: JSON.stringify(reviewData),
+    }),
 
   // =====================
   // USER PROFILE
@@ -113,11 +116,17 @@ export const apiService = {
       type === 'booking'
         ? `/bookings/${entityId}/receipt`
         : `/users/subscription/receipt`;
-    return apiFetch(endpoint, { method: 'POST', body: JSON.stringify({ receipt: receiptData }) });
+    return apiFetch(endpoint, {
+      method: 'POST',
+      body: JSON.stringify({ receipt: receiptData }),
+    });
   },
 
   requestSubscriptionUpgrade: async (plan: any) =>
-    apiFetch('/users/subscription/request-upgrade', { method: 'POST', body: JSON.stringify({ plan }) }),
+    apiFetch('/users/subscription/request-upgrade', {
+      method: 'POST',
+      body: JSON.stringify({ plan }),
+    }),
 
   // =====================
   // ADMIN ACTIONS
@@ -125,17 +134,29 @@ export const apiService = {
   adminGetAllUsers: async (): Promise<User[]> => apiFetch('/admin/users'),
 
   adminUpdateUserStatus: async (userId: string, isSuspended: boolean) =>
-    apiFetch(`/admin/users/${userId}/status`, { method: 'PUT', body: JSON.stringify({ isSuspended }) }),
+    apiFetch(`/admin/users/${userId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ isSuspended }),
+    }),
 
   adminDeleteUser: async (userId: string) =>
     apiFetch(`/admin/users/${userId}`, { method: 'DELETE' }),
 
   adminConfirmPayment: async (bookingId: string) =>
-    apiFetch('/admin/payments/confirm', { method: 'POST', body: JSON.stringify({ bookingId }) }),
+    apiFetch('/admin/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ bookingId }),
+    }),
 
   adminApproveSubscription: async (userId: string) =>
-    apiFetch('/admin/subscriptions/approve', { method: 'POST', body: JSON.stringify({ userId }) }),
+    apiFetch('/admin/subscriptions/approve', {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    }),
 
   adminMarkAsPaid: async (bookingId: string) =>
-    apiFetch('/admin/payments/mark-paid', { method: 'POST', body: JSON.stringify({ bookingId }) }),
+    apiFetch('/admin/payments/mark-paid', {
+      method: 'POST',
+      body: JSON.stringify({ bookingId }),
+    }),
 };
