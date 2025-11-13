@@ -1,26 +1,28 @@
+// File: src/services/apiService.js
 import { User } from '../types';
 
 /**
- * Base URL configuration:
- * Uses environment variable if available (for Vercel deployment)
+ * ✅ Base URL configuration:
+ * Uses environment variable (for Vercel deployment)
  * Falls back to localhost for local development.
  */
-const API_BASE_URL = `${
-  process.env.REACT_APP_API_URL?.replace(/\/$/, '') || 'http://localhost:5000'
-}/api`;
+const API_BASE_URL =
+  (process.env.REACT_APP_API_URL?.replace(/\/$/, '') || 'http://localhost:5000') + '/api';
 
 /**
  * Retrieves the authentication token from localStorage.
  */
-const getToken = (): string | null => localStorage.getItem('cleanconnect_token');
+const getToken = () => localStorage.getItem('cleanconnect_token');
 
 /**
  * Generic fetch wrapper for API requests.
  * Adds Authorization header if token exists.
+ * Logs detailed errors for debugging.
  */
-const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
+const apiFetch = async (endpoint, options = {}) => {
   const token = getToken();
-  const headers: HeadersInit = {
+
+  const headers = {
     'Content-Type': 'application/json',
     ...options.headers,
   };
@@ -29,89 +31,99 @@ const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const url = `${API_BASE_URL}${endpoint}`;
+  console.log(`📡 [API REQUEST] ${options.method || 'GET'} → ${url}`);
 
-  if (!response.ok) {
-    let errorData;
-    try {
-      errorData = await response.json();
-    } catch (e) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    // Network or CORS failure
+    if (!response) {
+      throw new Error('No response from server');
     }
-    throw new Error(errorData.message || 'An unknown API error occurred');
-  }
 
-  if (response.status === 204) return null;
-  return response.json();
+    // Response not OK
+    if (!response.ok) {
+      let errorData = {};
+      try {
+        errorData = await response.json();
+      } catch (e) {}
+      throw new Error(
+        errorData.message || `API Error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    // No content
+    if (response.status === 204) return null;
+
+    // Parse JSON
+    return response.json();
+  } catch (err) {
+    console.error(`❌ [API ERROR] ${endpoint}:`, err.message);
+    throw new Error(
+      err.message.includes('Failed to fetch')
+        ? 'Cannot reach the server. Please check your internet or try again shortly.'
+        : err.message
+    );
+  }
 };
 
+// =====================
+// Exported API service
+// =====================
 export const apiService = {
-  // =====================
   // AUTH
-  // =====================
-  login: async (email: string, password?: string): Promise<{ token: string; user: User }> => {
-    return apiFetch('/auth/login', {
+  login: (email, password) =>
+    apiFetch('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
-    });
-  },
+    }),
 
-  register: async (userData: Partial<User>): Promise<User> => {
-    return apiFetch('/auth/register', {
+  register: (userData) =>
+    apiFetch('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
-    });
-  },
+    }),
 
-  getMe: async (): Promise<User> => {
-    return apiFetch('/auth/me');
-  },
+  getMe: () => apiFetch('/auth/me'),
 
-  // =====================
   // CLEANERS
-  // =====================
-  getAllCleaners: async () => apiFetch('/cleaners'),
-  getCleanerById: async (id: string) => apiFetch(`/cleaners/${id}`),
-  aiSearchCleaners: async (query: string) =>
+  getAllCleaners: () => apiFetch('/cleaners'),
+  getCleanerById: (id) => apiFetch(`/cleaners/${id}`),
+  aiSearchCleaners: (query) =>
     apiFetch('/cleaners/ai-search', {
       method: 'POST',
       body: JSON.stringify({ query }),
     }),
 
-  // =====================
   // BOOKINGS
-  // =====================
-  createBooking: async (bookingData: any) =>
+  createBooking: (bookingData) =>
     apiFetch('/bookings', { method: 'POST', body: JSON.stringify(bookingData) }),
 
-  cancelBooking: async (bookingId: string) =>
+  cancelBooking: (bookingId) =>
     apiFetch(`/bookings/${bookingId}/cancel`, { method: 'PUT' }),
 
-  markJobComplete: async (bookingId: string) =>
+  markJobComplete: (bookingId) =>
     apiFetch(`/bookings/${bookingId}/complete`, { method: 'POST' }),
 
-  submitReview: async (bookingId: string, reviewData: any) =>
+  submitReview: (bookingId, reviewData) =>
     apiFetch(`/bookings/${bookingId}/review`, {
       method: 'POST',
       body: JSON.stringify(reviewData),
     }),
 
-  // =====================
   // USER PROFILE
-  // =====================
-  updateUser: async (userData: Partial<User>) =>
+  updateUser: (userData) =>
     apiFetch('/users/profile', { method: 'PUT', body: JSON.stringify(userData) }),
 
-  submitContactForm: async (formData: any) =>
+  submitContactForm: (formData) =>
     apiFetch('/contact', { method: 'POST', body: JSON.stringify(formData) }),
 
-  // =====================
   // RECEIPTS & SUBSCRIPTIONS
-  // =====================
-  uploadReceipt: async (entityId: string, receiptData: any, type: 'booking' | 'subscription') => {
+  uploadReceipt: (entityId, receiptData, type) => {
     const endpoint =
       type === 'booking'
         ? `/bookings/${entityId}/receipt`
@@ -122,39 +134,37 @@ export const apiService = {
     });
   },
 
-  requestSubscriptionUpgrade: async (plan: any) =>
+  requestSubscriptionUpgrade: (plan) =>
     apiFetch('/users/subscription/request-upgrade', {
       method: 'POST',
       body: JSON.stringify({ plan }),
     }),
 
-  // =====================
   // ADMIN ACTIONS
-  // =====================
-  adminGetAllUsers: async (): Promise<User[]> => apiFetch('/admin/users'),
+  adminGetAllUsers: () => apiFetch('/admin/users'),
 
-  adminUpdateUserStatus: async (userId: string, isSuspended: boolean) =>
+  adminUpdateUserStatus: (userId, isSuspended) =>
     apiFetch(`/admin/users/${userId}/status`, {
       method: 'PUT',
       body: JSON.stringify({ isSuspended }),
     }),
 
-  adminDeleteUser: async (userId: string) =>
+  adminDeleteUser: (userId) =>
     apiFetch(`/admin/users/${userId}`, { method: 'DELETE' }),
 
-  adminConfirmPayment: async (bookingId: string) =>
+  adminConfirmPayment: (bookingId) =>
     apiFetch('/admin/payments/confirm', {
       method: 'POST',
       body: JSON.stringify({ bookingId }),
     }),
 
-  adminApproveSubscription: async (userId: string) =>
+  adminApproveSubscription: (userId) =>
     apiFetch('/admin/subscriptions/approve', {
       method: 'POST',
       body: JSON.stringify({ userId }),
     }),
 
-  adminMarkAsPaid: async (bookingId: string) =>
+  adminMarkAsPaid: (bookingId) =>
     apiFetch('/admin/payments/mark-paid', {
       method: 'POST',
       body: JSON.stringify({ bookingId }),
