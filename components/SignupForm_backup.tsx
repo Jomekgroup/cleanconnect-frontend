@@ -189,22 +189,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
         setSelectedServices(prev => (prev.includes(service) ? prev.filter(s => s !== service) : [...prev, service]));
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: 'photo' | 'governmentId' | 'businessReg') => {) => {
-    if(e.target.files && e.target.files[0]){
-        const file = e.target.files[0];
-        // File validation: max 5MB, jpg/png/pdf only
-        const validTypes = ["image/jpeg","image/png","application/pdf"];
-        if(file.size > 5*1024*1024){
-            alert("File size must be 5MB or less.");
-            e.target.value = "";
-            return;
-        }
-        if(!validTypes.includes(file.type)){
-            alert("Invalid file type. Allowed: JPG, PNG, PDF.");
-            e.target.value = "";
-            return;
-        }
-    }
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: 'photo' | 'governmentId' | 'businessReg') => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             switch (fileType) {
@@ -347,7 +332,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                 } catch (_) {
                     // keep text
                 }
-                setFeedbackMsg({type:"error", text: "Signup failed: "+errText});
+                alert('Signup failed: ' + errText);
                 setSubmitting(false);
                 return;
             }
@@ -373,7 +358,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             onComplete(returnedUser);
         } catch (err) {
             console.error('Signup error', err);
-            setFeedbackMsg({type:"error", text: "Cannot reach server. Check internet or try again."});
+            alert('Cannot reach the server. Please check your internet or try again shortly.');
         } finally {
             setSubmitting(false);
         }
@@ -585,7 +570,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                             Government ID (Drivers Licence, NIN or International Passport)
                         </label>
                         <input type="file" name="governmentId" id="governmentId" onChange={(e) => handleFileChange(e, 'governmentId')} required className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-primary hover:file:bg-green-100" />
-{governmentIdFile && <p className="text-sm text-gray-400 mt-1">Selected file: {governmentIdFile.name}</p>}
                         <p className="mt-1 text-xs text-gray-500">PDF, JPG, PNG up to 5MB.</p>
                     </div>
 
@@ -606,7 +590,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                                         CAC Business Registration
                                     </label>
                                     <input type="file" name="businessRegDoc" id="businessRegDoc" onChange={(e) => handleFileChange(e, 'businessReg')} required className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-primary hover:file:bg-green-100" />
-{businessRegFile && <p className="text-sm text-gray-400 mt-1">Selected file: {businessRegFile.name}</p>}
                                     <p className="mt-1 text-xs text-gray-500">PDF, JPG, PNG up to 5MB.</p>
                                 </div>
                             )}
@@ -669,8 +652,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                     <div className="bg-white p-4 rounded-lg shadow-xl text-center">
                         <h3 className="text-lg font-medium text-gray-900 mb-2">Live Selfie Capture</h3>
                         <p className="text-sm text-gray-500 mb-4">Position your face in the center and hold still.</p>
-                        {!videoRef.current?.srcObject ? <p className="text-sm text-gray-200 mb-2">Camera initializing...</p> : null}
-<video ref={videoRef} autoPlay playsInline className="w-full max-w-md rounded-md h-auto"></video>
+                        <video ref={videoRef} autoPlay playsInline className="w-full max-w-md rounded-md h-auto"></video>
                         <canvas ref={canvasRef} className="hidden"></canvas>
                         <div className="mt-4 flex justify-center gap-4">
                             <button onClick={handleCloseCamera} className="bg-gray-200 py-2 px-4 rounded-md text-sm font-medium text-gray-800 hover:bg-gray-300">Cancel</button>
