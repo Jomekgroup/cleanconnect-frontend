@@ -19,14 +19,14 @@ const getToken = () => localStorage.getItem('cleanconnect_token');
  * Adds Authorization header if token exists.
  * Logs detailed errors for debugging.
  */
-const apiFetch = async (endpoint, options = {}) => {
+const apiFetch = async (endpoint, options: any = {}) => {
   const token = getToken();
 
-  const headers = {
-    'Content-Type': 'application/json',
+  const headers: any = {
     ...options.headers,
   };
 
+  // Only add Authorization; content-type is handled automatically for FormData
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -40,12 +40,10 @@ const apiFetch = async (endpoint, options = {}) => {
       headers,
     });
 
-    // Network or CORS failure
     if (!response) {
       throw new Error('No response from server');
     }
 
-    // Response not OK
     if (!response.ok) {
       let errorData = {};
       try {
@@ -56,12 +54,10 @@ const apiFetch = async (endpoint, options = {}) => {
       );
     }
 
-    // No content
     if (response.status === 204) return null;
 
-    // Parse JSON
     return response.json();
-  } catch (err) {
+  } catch (err: any) {
     console.error(`❌ [API ERROR] ${endpoint}:`, err.message);
     throw new Error(
       err.message.includes('Failed to fetch')
@@ -75,55 +71,68 @@ const apiFetch = async (endpoint, options = {}) => {
 // Exported API service
 // =====================
 export const apiService = {
+  // =====================
   // AUTH
-  login: (email, password) =>
+  // =====================
+  login: (email: string, password: string) =>
     apiFetch('/auth/login', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     }),
 
-  register: (userData) =>
+  register: (formData: FormData) =>
     apiFetch('/auth/register', {
       method: 'POST',
-      body: JSON.stringify(userData),
+      body: formData, // FormData handles files
     }),
 
   getMe: () => apiFetch('/auth/me'),
 
+  // =====================
   // CLEANERS
+  // =====================
   getAllCleaners: () => apiFetch('/cleaners'),
-  getCleanerById: (id) => apiFetch(`/cleaners/${id}`),
-  aiSearchCleaners: (query) =>
+  getCleanerById: (id: string | number) => apiFetch(`/cleaners/${id}`),
+  aiSearchCleaners: (query: string) =>
     apiFetch('/cleaners/ai-search', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
     }),
 
+  // =====================
   // BOOKINGS
-  createBooking: (bookingData) =>
-    apiFetch('/bookings', { method: 'POST', body: JSON.stringify(bookingData) }),
+  // =====================
+  createBooking: (bookingData: any) =>
+    apiFetch('/bookings', { method: 'POST', body: JSON.stringify(bookingData), headers: { 'Content-Type': 'application/json' } }),
 
-  cancelBooking: (bookingId) =>
+  cancelBooking: (bookingId: string | number) =>
     apiFetch(`/bookings/${bookingId}/cancel`, { method: 'PUT' }),
 
-  markJobComplete: (bookingId) =>
+  markJobComplete: (bookingId: string | number) =>
     apiFetch(`/bookings/${bookingId}/complete`, { method: 'POST' }),
 
-  submitReview: (bookingId, reviewData) =>
+  submitReview: (bookingId: string | number, reviewData: any) =>
     apiFetch(`/bookings/${bookingId}/review`, {
       method: 'POST',
       body: JSON.stringify(reviewData),
+      headers: { 'Content-Type': 'application/json' },
     }),
 
+  // =====================
   // USER PROFILE
-  updateUser: (userData) =>
-    apiFetch('/users/profile', { method: 'PUT', body: JSON.stringify(userData) }),
+  // =====================
+  updateUser: (userData: any) =>
+    apiFetch('/users/profile', { method: 'PUT', body: JSON.stringify(userData), headers: { 'Content-Type': 'application/json' } }),
 
-  submitContactForm: (formData) =>
-    apiFetch('/contact', { method: 'POST', body: JSON.stringify(formData) }),
+  submitContactForm: (formData: any) =>
+    apiFetch('/contact', { method: 'POST', body: JSON.stringify(formData), headers: { 'Content-Type': 'application/json' } }),
 
+  // =====================
   // RECEIPTS & SUBSCRIPTIONS
-  uploadReceipt: (entityId, receiptData, type) => {
+  // =====================
+  uploadReceipt: (entityId: string | number, receiptData: any, type: string) => {
     const endpoint =
       type === 'booking'
         ? `/bookings/${entityId}/receipt`
@@ -131,42 +140,50 @@ export const apiService = {
     return apiFetch(endpoint, {
       method: 'POST',
       body: JSON.stringify({ receipt: receiptData }),
+      headers: { 'Content-Type': 'application/json' },
     });
   },
 
-  requestSubscriptionUpgrade: (plan) =>
+  requestSubscriptionUpgrade: (plan: string) =>
     apiFetch('/users/subscription/request-upgrade', {
       method: 'POST',
       body: JSON.stringify({ plan }),
+      headers: { 'Content-Type': 'application/json' },
     }),
 
+  // =====================
   // ADMIN ACTIONS
+  // =====================
   adminGetAllUsers: () => apiFetch('/admin/users'),
 
-  adminUpdateUserStatus: (userId, isSuspended) =>
+  adminUpdateUserStatus: (userId: string | number, isSuspended: boolean) =>
     apiFetch(`/admin/users/${userId}/status`, {
       method: 'PUT',
       body: JSON.stringify({ isSuspended }),
+      headers: { 'Content-Type': 'application/json' },
     }),
 
-  adminDeleteUser: (userId) =>
+  adminDeleteUser: (userId: string | number) =>
     apiFetch(`/admin/users/${userId}`, { method: 'DELETE' }),
 
-  adminConfirmPayment: (bookingId) =>
+  adminConfirmPayment: (bookingId: string | number) =>
     apiFetch('/admin/payments/confirm', {
       method: 'POST',
       body: JSON.stringify({ bookingId }),
+      headers: { 'Content-Type': 'application/json' },
     }),
 
-  adminApproveSubscription: (userId) =>
+  adminApproveSubscription: (userId: string | number) =>
     apiFetch('/admin/subscriptions/approve', {
       method: 'POST',
       body: JSON.stringify({ userId }),
+      headers: { 'Content-Type': 'application/json' },
     }),
 
-  adminMarkAsPaid: (bookingId) =>
+  adminMarkAsPaid: (bookingId: string | number) =>
     apiFetch('/admin/payments/mark-paid', {
       method: 'POST',
       body: JSON.stringify({ bookingId }),
+      headers: { 'Content-Type': 'application/json' },
     }),
 };
