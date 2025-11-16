@@ -10,6 +10,11 @@ interface SignupFormProps {
     onNavigate: (view: View) => void;
 }
 
+interface FeedbackMessage {
+    type: 'error' | 'success';
+    text: string;
+}
+
 const FormSection: React.FC<{ title: string; children: React.ReactNode; description?: string }> = ({ title, description, children }) => (
     <div className="pt-8">
         <div>
@@ -98,12 +103,19 @@ const ClientTypeSelector: React.FC<{ onSelect: (type: 'Individual' | 'Company') 
     );
 };
 
+const LoadingSpinner: React.FC = () => (
+    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
 export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete, onNavigate }) => {
     const [cleanerType, setCleanerType] = useState<'Individual' | 'Company' | null>(null);
     const [clientType, setClientType] = useState<'Individual' | 'Company' | null>(null);
     const [formData, setFormData] = useState({
         fullName: '',
-        email: email, // Pre-fill email from props
+        email: email,
         phoneNumber: '',
         gender: 'Male',
         state: '',
@@ -132,14 +144,18 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [cities, setCities] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
+    const [feedbackMsg, setFeedbackMsg] = useState<FeedbackMessage | null>(null);
 
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
 
-    // API base - use VITE_API_URL if provided in Vercel env, otherwise fallback to Render URL
     const API_BASE = (import.meta.env as any).VITE_API_URL || 'https://cleanconnect-backend-mzc4.onrender.com/api';
+
+    // Constants for validation
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const VALID_FILE_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 
     useEffect(() => {
         if (formData.state) {
@@ -151,7 +167,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
         }
     }, [formData.state]);
 
-    // Effect to handle camera stream setup and cleanup
     useEffect(() => {
         const startCamera = async () => {
             if (videoRef.current) {
@@ -161,8 +176,8 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                     videoRef.current.srcObject = stream;
                 } catch (err) {
                     console.error('Error accessing camera: ', err);
-                    alert('Could not access the camera. Please check your browser permissions.');
-                    setIsCameraOpen(false); // Close modal on error
+                    setFeedbackMsg({ type: 'error', text: 'Could not access the camera. Please check your browser permissions.' });
+                    setIsCameraOpen(false);
                 }
             }
         };
@@ -171,7 +186,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             startCamera();
         }
 
-        // Cleanup function to stop stream when modal is closed or component unmounts
         return () => {
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(track => track.stop());
@@ -183,43 +197,51 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        // Clear feedback when user starts typing
+        if (feedbackMsg) setFeedbackMsg(null);
     };
 
     const handleServiceToggle = (service: string) => {
         setSelectedServices(prev => (prev.includes(service) ? prev.filter(s => s !== service) : [...prev, service]));
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: 'photo' | 'governmentId' | 'businessReg') => {) => {
-    if(e.target.files && e.target.files[0]){
+    const validateFile = (file: File): boolean => {
+        if (file.size > MAX_FILE_SIZE) {
+            setFeedbackMsg({ type: 'error', text: 'File size must be 5MB or less.' });
+            return false;
+        }
+        if (!VALID_FILE_TYPES.includes(file.type)) {
+            setFeedbackMsg({ type: 'error', text: 'Invalid file type. Allowed: JPG, PNG, PDF.' });
+            return false;
+        }
+        return true;
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: 'photo' | 'governmentId' | 'businessReg') => {
+        if (!e.target.files || !e.target.files[0]) return;
+        
         const file = e.target.files[0];
-        // File validation: max 5MB, jpg/png/pdf only
-        const validTypes = ["image/jpeg","image/png","application/pdf"];
-        if(file.size > 5*1024*1024){
-            alert("File size must be 5MB or less.");
-            e.target.value = "";
+        
+        if (!validateFile(file)) {
+            e.target.value = '';
             return;
         }
-        if(!validTypes.includes(file.type)){
-            alert("Invalid file type. Allowed: JPG, PNG, PDF.");
-            e.target.value = "";
-            return;
+
+        switch (fileType) {
+            case 'photo':
+                setProfilePhoto(file);
+                setProfilePhotoPreview(URL.createObjectURL(file));
+                break;
+            case 'governmentId':
+                setGovernmentIdFile(file);
+                break;
+            case 'businessReg':
+                setBusinessRegFile(file);
+                break;
         }
-    }
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            switch (fileType) {
-                case 'photo':
-                    setProfilePhoto(file);
-                    setProfilePhotoPreview(URL.createObjectURL(file));
-                    break;
-                case 'governmentId':
-                    setGovernmentIdFile(file);
-                    break;
-                case 'businessReg':
-                    setBusinessRegFile(file);
-                    break;
-            }
-        }
+        
+        // Clear any previous feedback on successful file selection
+        setFeedbackMsg(null);
     };
 
     const handleOpenCamera = () => {
@@ -227,7 +249,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
     };
 
     const handleCloseCamera = () => {
-        setIsCameraOpen(false); // Triggers useEffect cleanup
+        setIsCameraOpen(false);
     };
 
     const handleCaptureSelfie = () => {
@@ -235,9 +257,8 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             const video = videoRef.current;
             const canvas = canvasRef.current;
 
-            // Prevent capturing a blank image if the video stream isn't ready.
             if (video.videoWidth === 0 || video.videoHeight === 0) {
-                alert('Camera is not ready yet. Please wait a moment.');
+                setFeedbackMsg({ type: 'error', text: 'Camera is not ready yet. Please wait a moment.' });
                 return;
             }
 
@@ -251,6 +272,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                     const selfieFile = new File([blob], 'selfie.jpg', { type: 'image/jpeg' });
                     setSelfie(selfieFile);
                     setSelfiePreview(URL.createObjectURL(selfieFile));
+                    setFeedbackMsg(null); // Clear any previous errors
                 }
             }, 'image/jpeg');
 
@@ -258,67 +280,101 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
         }
     };
 
-    // Validation helper (keeps original validation logic intact)
-    const isFormValid = () => {
+    const sanitizeInput = (input: string): string => {
+        return input.trim().replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    };
+
+    const validateForm = (): string | null => {
+        if (!agreedToTerms) {
+            return 'You must agree to the terms and conditions.';
+        }
+
         const commonFields = formData.fullName && formData.email && formData.phoneNumber && formData.state && formData.city && formData.address;
-        if (!commonFields || !agreedToTerms) return false;
+        if (!commonFields) {
+            return 'Please fill in all required personal information fields.';
+        }
 
-        if (formData.city === 'Other' && !formData.otherCity) return false;
+        if (formData.city === 'Other' && !formData.otherCity) {
+            return 'Please specify your city/town when selecting "Other".';
+        }
 
-        if (!selfie || !governmentIdFile) return false;
+        if (!selfie || !governmentIdFile) {
+            return 'Live selfie and government ID are required for verification.';
+        }
 
         const isCompany = (role === 'client' && clientType === 'Company') || (role === 'cleaner' && cleanerType === 'Company');
         if (isCompany && (!formData.companyName || !formData.companyAddress)) {
-            return false;
+            return 'Company name and address are required for company accounts.';
         }
 
         if (role === 'client') {
-            if (!clientType) return false;
+            if (!clientType) return 'Please select client type.';
         }
 
         if (role === 'cleaner') {
-            const cleanerFields = cleanerType && Number(formData.experience) > 0 && selectedServices.length > 0 && formData.bio && profilePhoto && formData.nin && (Number(formData.chargeHourly) > 0 || Number(formData.chargeDaily) > 0 || Number(formData.chargePerContract) > 0 || chargePerContractNegotiable);
-            if (!cleanerFields) return false;
-            if (cleanerType === 'Company' && !businessRegFile) return false;
+            const cleanerFields = cleanerType && 
+                Number(formData.experience) > 0 && 
+                selectedServices.length > 0 && 
+                formData.bio && 
+                profilePhoto && 
+                formData.nin && 
+                (Number(formData.chargeHourly) > 0 || 
+                 Number(formData.chargeDaily) > 0 || 
+                 Number(formData.chargePerContract) > 0 || 
+                 chargePerContractNegotiable);
+            
+            if (!cleanerFields) {
+                return 'Please fill in all required cleaner information fields.';
+            }
+            
+            if (cleanerType === 'Company' && !businessRegFile) {
+                return 'Business registration document is required for company cleaners.';
+            }
         }
-        return true;
+        
+        return null;
     };
 
-    // --- NEW: Submit to backend (sends FormData including files) ---
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!agreedToTerms) {
-            alert('You must agree to the terms and conditions.');
+        
+        const validationError = validateForm();
+        if (validationError) {
+            setFeedbackMsg({ type: 'error', text: validationError });
             return;
         }
 
         setSubmitting(true);
+        setFeedbackMsg(null);
 
         const isCompany = (role === 'client' && clientType === 'Company') || (role === 'cleaner' && cleanerType === 'Company');
 
         const payload = new FormData();
         payload.append('role', role);
-        payload.append('fullName', formData.fullName);
+        payload.append('fullName', sanitizeInput(formData.fullName));
         payload.append('email', formData.email);
         payload.append('phoneNumber', formData.phoneNumber);
         payload.append('gender', formData.gender);
         payload.append('state', formData.state);
         payload.append('city', formData.city);
-        payload.append('address', formData.address);
-        if (formData.city === 'Other') payload.append('otherCity', formData.otherCity || '');
+        payload.append('address', sanitizeInput(formData.address));
+        
+        if (formData.city === 'Other') {
+            payload.append('otherCity', sanitizeInput(formData.otherCity || ''));
+        }
 
         if (selfie) payload.append('selfie', selfie);
         if (governmentIdFile) payload.append('governmentId', governmentIdFile);
 
         if (isCompany) {
-            payload.append('companyName', formData.companyName);
-            payload.append('companyAddress', formData.companyAddress);
+            payload.append('companyName', sanitizeInput(formData.companyName));
+            payload.append('companyAddress', sanitizeInput(formData.companyAddress));
         }
 
         if (role === 'cleaner') {
             payload.append('cleanerType', cleanerType || 'Individual');
             payload.append('experience', String(formData.experience));
-            payload.append('bio', formData.bio);
+            payload.append('bio', sanitizeInput(formData.bio));
             payload.append('nin', formData.nin);
             payload.append('services', JSON.stringify(selectedServices || []));
             if (profilePhoto) payload.append('profilePhoto', profilePhoto);
@@ -327,7 +383,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             payload.append('chargeDaily', String(formData.chargeDaily));
             payload.append('chargePerContract', String(formData.chargePerContract));
             payload.append('chargePerContractNegotiable', String(chargePerContractNegotiable));
-            payload.append('bankName', formData.bankName);
+            payload.append('bankName', sanitizeInput(formData.bankName));
             payload.append('accountNumber', formData.accountNumber);
         }
 
@@ -335,8 +391,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             const res = await fetch(`${API_BASE}/auth/register`, {
                 method: 'POST',
                 body: payload,
-                // Note: do NOT set Content-Type header when sending FormData — browser sets multipart boundary for you
-                // credentials: 'include' // uncomment if your backend expects cookies
             });
 
             if (!res.ok) {
@@ -345,16 +399,15 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                     const json = JSON.parse(errText);
                     errText = json.message || JSON.stringify(json);
                 } catch (_) {
-                    // keep text
+                    // keep text as is
                 }
-                setFeedbackMsg({type:"error", text: "Signup failed: "+errText});
+                setFeedbackMsg({ type: 'error', text: `Signup failed: ${errText}` });
                 setSubmitting(false);
                 return;
             }
 
             const data = await res.json();
 
-            // If backend returns user object, use it. Otherwise, build fallback user and return to parent.
             const returnedUser: User = data.user || {
                 id: String(Date.now()),
                 role,
@@ -373,7 +426,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             onComplete(returnedUser);
         } catch (err) {
             console.error('Signup error', err);
-            setFeedbackMsg({type:"error", text: "Cannot reach server. Check internet or try again."});
+            setFeedbackMsg({ type: 'error', text: 'Cannot reach server. Check internet connection or try again.' });
         } finally {
             setSubmitting(false);
         }
@@ -383,6 +436,12 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
         <>
             <h2 className="text-2xl font-bold text-dark mb-2">Create Your {role === 'client' ? `Client (${clientType})` : `Cleaner (${cleanerType})`} Account</h2>
             <p className="text-gray-600 mb-6">Let's get you set up. Fill out the form below to get started.</p>
+
+            {feedbackMsg && (
+                <div className={`mb-6 p-4 rounded-md ${feedbackMsg.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+                    {feedbackMsg.text}
+                </div>
+            )}
 
             <form onSubmit={handleSubmit} className="divide-y divide-gray-200">
                 <FormSection title="Personal Information" description="This information is for the individual creating the account.">
@@ -527,7 +586,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                                         if (service && !selectedServices.includes(service)) {
                                             setSelectedServices([...selectedServices, service]);
                                         }
-                                        e.target.value = ''; // Reset dropdown
+                                        e.target.value = '';
                                     }}
                                 >
                                     <option value="">-- Choose a service to add --</option>
@@ -585,7 +644,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                             Government ID (Drivers Licence, NIN or International Passport)
                         </label>
                         <input type="file" name="governmentId" id="governmentId" onChange={(e) => handleFileChange(e, 'governmentId')} required className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-primary hover:file:bg-green-100" />
-{governmentIdFile && <p className="text-sm text-gray-400 mt-1">Selected file: {governmentIdFile.name}</p>}
+                        {governmentIdFile && <p className="text-sm text-gray-400 mt-1">Selected file: {governmentIdFile.name}</p>}
                         <p className="mt-1 text-xs text-gray-500">PDF, JPG, PNG up to 5MB.</p>
                     </div>
 
@@ -606,7 +665,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                                         CAC Business Registration
                                     </label>
                                     <input type="file" name="businessRegDoc" id="businessRegDoc" onChange={(e) => handleFileChange(e, 'businessReg')} required className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-primary hover:file:bg-green-100" />
-{businessRegFile && <p className="text-sm text-gray-400 mt-1">Selected file: {businessRegFile.name}</p>}
+                                    {businessRegFile && <p className="text-sm text-gray-400 mt-1">Selected file: {businessRegFile.name}</p>}
                                     <p className="mt-1 text-xs text-gray-500">PDF, JPG, PNG up to 5MB.</p>
                                 </div>
                             )}
@@ -627,8 +686,8 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                         <button type="button" onClick={() => onNavigate('landing')} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
                             Cancel
                         </button>
-                        <button type="submit" disabled={!isFormValid() || submitting} className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:bg-gray-400 disabled:cursor-not-allowed">
-                            {submitting ? 'Creating...' : 'Create Account'}
+                        <button type="submit" disabled={!agreedToTerms || submitting} className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:bg-gray-400 disabled:cursor-not-allowed">
+                            {submitting ? <><LoadingSpinner /> Creating...</> : 'Create Account'}
                         </button>
                     </div>
                 </div>
@@ -642,10 +701,8 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                 <button
                     onClick={() => {
                         if ((role === 'cleaner' && cleanerType) || (role === 'client' && clientType)) {
-                            // If in form, go back to type selector
                             role === 'cleaner' ? setCleanerType(null) : setClientType(null);
                         } else {
-                            // If in type selector, go back to role selection screen
                             onNavigate('roleSelection');
                         }
                     }}
@@ -670,7 +727,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                         <h3 className="text-lg font-medium text-gray-900 mb-2">Live Selfie Capture</h3>
                         <p className="text-sm text-gray-500 mb-4">Position your face in the center and hold still.</p>
                         {!videoRef.current?.srcObject ? <p className="text-sm text-gray-200 mb-2">Camera initializing...</p> : null}
-<video ref={videoRef} autoPlay playsInline className="w-full max-w-md rounded-md h-auto"></video>
+                        <video ref={videoRef} autoPlay playsInline className="w-full max-w-md rounded-md h-auto"></video>
                         <canvas ref={canvasRef} className="hidden"></canvas>
                         <div className="mt-4 flex justify-center gap-4">
                             <button onClick={handleCloseCamera} className="bg-gray-200 py-2 px-4 rounded-md text-sm font-medium text-gray-800 hover:bg-gray-300">Cancel</button>
