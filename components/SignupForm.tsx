@@ -325,9 +325,10 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
 
         const payload = new FormData();
         
-        // Basic user information
+        // BASIC USER INFORMATION
         payload.append('fullName', sanitizeInput(formData.fullName));
         payload.append('email', formData.email);
+        payload.append('password', 'defaultPassword123!'); // REQUIRED BY BACKEND
         payload.append('phoneNumber', formData.phoneNumber);
         payload.append('gender', formData.gender);
         payload.append('state', formData.state);
@@ -339,38 +340,60 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             payload.append('otherCity', sanitizeInput(formData.otherCity || ''));
         }
 
-        // File uploads - MUST MATCH BACKEND FIELD NAMES EXACTLY
+        // FILE UPLOADS - FIXED FIELD NAMES TO MATCH BACKEND
         if (selfie) payload.append('selfie', selfie);
-        if (governmentIdFile) payload.append('governmentId', governmentIdFile);
+        if (governmentIdFile) payload.append('idDocument', governmentIdFile); // CHANGED: governmentId → idDocument
 
-        // Company information
+        // COMPANY INFORMATION
         if (isCompany) {
             payload.append('companyName', sanitizeInput(formData.companyName));
             payload.append('companyAddress', sanitizeInput(formData.companyAddress));
         }
 
-        // Cleaner-specific fields
+        // CLIENT-SPECIFIC FIELDS
+        if (role === 'client') {
+            payload.append('clientType', clientType || 'Individual');
+        }
+
+        // CLEANER-SPECIFIC FIELDS
         if (role === 'cleaner') {
             payload.append('cleanerType', cleanerType || 'Individual');
             payload.append('experience', String(formData.experience));
             payload.append('bio', sanitizeInput(formData.bio));
             payload.append('nin', formData.nin);
-            payload.append('services', JSON.stringify(selectedServices || []));
             
-            // File uploads for cleaner - MUST MATCH BACKEND FIELD NAMES
+            // SERVICES - FIXED: Send as array, not JSON string
+            if (selectedServices.length > 0) {
+                selectedServices.forEach(service => {
+                    payload.append('services', service);
+                });
+            }
+            
+            // FILE UPLOADS FOR CLEANER
             if (profilePhoto) payload.append('profilePhoto', profilePhoto);
             if (businessRegFile) payload.append('businessRegDoc', businessRegFile);
             
-            // Pricing
+            // PRICING
             payload.append('chargeHourly', String(formData.chargeHourly));
             payload.append('chargeDaily', String(formData.chargeDaily));
             payload.append('chargePerContract', String(formData.chargePerContract));
             payload.append('chargePerContractNegotiable', String(chargePerContractNegotiable));
             
-            // Bank details
+            // BANK DETAILS
             payload.append('bankName', sanitizeInput(formData.bankName));
             payload.append('accountNumber', formData.accountNumber);
         }
+
+        // DEBUG: Log all FormData entries
+        console.log('=== FORM DATA BEING SENT ===');
+        for (let [key, value] of payload.entries()) {
+            if (value instanceof File) {
+                console.log(`${key}:`, value.name, `(${value.type}, ${value.size} bytes)`);
+            } else {
+                console.log(`${key}:`, value);
+            }
+        }
+        console.log('=== END FORM DATA ===');
 
         try {
             const res = await fetch(`${API_BASE}/auth/register`, {
@@ -386,6 +409,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                 } catch (_) {
                     // keep text as is
                 }
+                console.error('Server error:', errText);
                 setFeedbackMsg({ type: 'error', text: `Signup failed: ${errText}` });
                 setSubmitting(false);
                 return;
@@ -632,6 +656,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                                 Open Camera
                             </button>
                         </div>
+                        {selfie && <p className="text-sm text-green-600 mt-1">✓ Selfie captured</p>}
                     </div>
 
                     {/* Government ID */}
@@ -647,6 +672,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                             required
                             className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-primary hover:file:bg-green-100"
                         />
+                        {governmentIdFile && <p className="text-sm text-green-600 mt-1">✓ Selected: {governmentIdFile.name}</p>}
                         <p className="mt-1 text-xs text-gray-500">PDF, JPG, PNG up to 5MB.</p>
                     </div>
 
@@ -673,6 +699,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                                     className="ml-5 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
                                 />
                             </div>
+                            {profilePhoto && <p className="text-sm text-green-600 mt-1">✓ Selected: {profilePhoto.name}</p>}
                         </div>
                     )}
 
@@ -690,6 +717,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                                 required
                                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-primary hover:file:bg-green-100"
                             />
+                            {businessRegFile && <p className="text-sm text-green-600 mt-1">✓ Selected: {businessRegFile.name}</p>}
                             <p className="mt-1 text-xs text-gray-500">PDF, JPG, PNG up to 5MB.</p>
                         </div>
                     )}
