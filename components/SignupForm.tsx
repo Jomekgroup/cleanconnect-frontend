@@ -340,9 +340,20 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             payload.append('otherCity', sanitizeInput(formData.otherCity || ''));
         }
 
-        // FILE UPLOADS - FIXED FIELD NAMES TO MATCH BACKEND
-        if (selfie) payload.append('selfie', selfie);
-        if (governmentIdFile) payload.append('idDocument', governmentIdFile); // CHANGED: governmentId → idDocument
+        // FILE UPLOADS - ONLY APPEND IF FILE EXISTS AND HAS CONTENT
+        if (selfie && selfie.size > 0) {
+            payload.append('selfie', selfie);
+            console.log('✓ Selfie appended:', selfie.name, `(${selfie.size} bytes)`);
+        } else {
+            console.warn('Selfie file is empty or missing');
+        }
+
+        if (governmentIdFile && governmentIdFile.size > 0) {
+            payload.append('idDocument', governmentIdFile);
+            console.log('✓ Government ID appended:', governmentIdFile.name, `(${governmentIdFile.size} bytes)`);
+        } else {
+            console.warn('Government ID file is empty or missing');
+        }
 
         // COMPANY INFORMATION
         if (isCompany) {
@@ -369,9 +380,20 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                 });
             }
             
-            // FILE UPLOADS FOR CLEANER
-            if (profilePhoto) payload.append('profilePhoto', profilePhoto);
-            if (businessRegFile) payload.append('businessRegDoc', businessRegFile);
+            // FILE UPLOADS FOR CLEANER - Only append if files exist and have content
+            if (profilePhoto && profilePhoto.size > 0) {
+                payload.append('profilePhoto', profilePhoto);
+                console.log('✓ Profile photo appended:', profilePhoto.name, `(${profilePhoto.size} bytes)`);
+            } else {
+                console.warn('Profile photo file is empty or missing');
+            }
+            
+            if (businessRegFile && businessRegFile.size > 0) {
+                payload.append('businessRegDoc', businessRegFile);
+                console.log('✓ Business registration appended:', businessRegFile.name, `(${businessRegFile.size} bytes)`);
+            } else if (cleanerType === 'Company') {
+                console.warn('Business registration file is empty or missing for company cleaner');
+            }
             
             // PRICING
             payload.append('chargeHourly', String(formData.chargeHourly));
