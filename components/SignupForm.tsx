@@ -328,7 +328,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
         // BASIC USER INFORMATION
         payload.append('fullName', sanitizeInput(formData.fullName));
         payload.append('email', formData.email);
-        payload.append('password', 'defaultPassword123!'); // REQUIRED BY BACKEND
+        payload.append('password', 'defaultPassword123!');
         payload.append('phoneNumber', formData.phoneNumber);
         payload.append('gender', formData.gender);
         payload.append('state', formData.state);
@@ -340,19 +340,34 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             payload.append('otherCity', sanitizeInput(formData.otherCity || ''));
         }
 
-        // FILE UPLOADS - ONLY APPEND IF FILE EXISTS AND HAS CONTENT
-        if (selfie && selfie.size > 0) {
+        // CRITICAL FIX: FILE UPLOADS - Ensure files are properly appended
+        console.log('📁 Files to be uploaded:');
+        console.log('Selfie:', selfie ? `${selfie.name} (${selfie.size} bytes)` : 'MISSING');
+        console.log('Government ID:', governmentIdFile ? `${governmentIdFile.name} (${governmentIdFile.size} bytes)` : 'MISSING');
+        console.log('Profile Photo:', profilePhoto ? `${profilePhoto.name} (${profilePhoto.size} bytes)` : 'MISSING');
+        console.log('Business Reg:', businessRegFile ? `${businessRegFile.name} (${businessRegFile.size} bytes)` : 'MISSING');
+
+        // FIXED: Always append required files - don't check size on frontend
+        if (selfie) {
             payload.append('selfie', selfie);
-            console.log('✓ Selfie appended:', selfie.name, `(${selfie.size} bytes)`);
+            console.log('✅ Selfie appended');
         } else {
-            console.warn('Selfie file is empty or missing');
+            console.error('❌ CRITICAL: Selfie is missing');
+            setFeedbackMsg({ type: 'error', text: 'Selfie is required. Please capture a selfie using the camera.' });
+            setSubmitting(false);
+            return;
         }
 
-        if (governmentIdFile && governmentIdFile.size > 0) {
+        if (governmentIdFile) {
+            // Append to BOTH field names for maximum compatibility
             payload.append('idDocument', governmentIdFile);
-            console.log('✓ Government ID appended:', governmentIdFile.name, `(${governmentIdFile.size} bytes)`);
+            payload.append('governmentId', governmentIdFile);
+            console.log('✅ Government ID appended to both fields');
         } else {
-            console.warn('Government ID file is empty or missing');
+            console.error('❌ CRITICAL: Government ID is missing');
+            setFeedbackMsg({ type: 'error', text: 'Government ID is required. Please upload your ID document.' });
+            setSubmitting(false);
+            return;
         }
 
         // COMPANY INFORMATION
@@ -373,26 +388,27 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             payload.append('bio', sanitizeInput(formData.bio));
             payload.append('nin', formData.nin);
             
-            // SERVICES - FIXED: Send as array, not JSON string
+            // SERVICES
             if (selectedServices.length > 0) {
                 selectedServices.forEach(service => {
                     payload.append('services', service);
                 });
             }
             
-            // FILE UPLOADS FOR CLEANER - Only append if files exist and have content
-            if (profilePhoto && profilePhoto.size > 0) {
+            // FIXED: Cleaner file uploads
+            if (profilePhoto) {
                 payload.append('profilePhoto', profilePhoto);
-                console.log('✓ Profile photo appended:', profilePhoto.name, `(${profilePhoto.size} bytes)`);
+                console.log('✅ Profile photo appended');
             } else {
-                console.warn('Profile photo file is empty or missing');
+                console.error('❌ CRITICAL: Profile photo is missing');
+                setFeedbackMsg({ type: 'error', text: 'Profile photo is required for cleaners.' });
+                setSubmitting(false);
+                return;
             }
             
-            if (businessRegFile && businessRegFile.size > 0) {
+            if (businessRegFile && cleanerType === 'Company') {
                 payload.append('businessRegDoc', businessRegFile);
-                console.log('✓ Business registration appended:', businessRegFile.name, `(${businessRegFile.size} bytes)`);
-            } else if (cleanerType === 'Company') {
-                console.warn('Business registration file is empty or missing for company cleaner');
+                console.log('✅ Business registration appended');
             }
             
             // PRICING
@@ -406,38 +422,46 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
             payload.append('accountNumber', formData.accountNumber);
         }
 
-        // DEBUG: Log all FormData entries
-        console.log('=== FORM DATA BEING SENT ===');
+        // DEBUG: Verify FormData contents
+        console.log('=== FINAL FORM DATA ===');
         for (let [key, value] of payload.entries()) {
             if (value instanceof File) {
-                console.log(`${key}:`, value.name, `(${value.type}, ${value.size} bytes)`);
+                console.log(`📄 ${key}: ${value.name} (${value.size} bytes, ${value.type})`);
             } else {
-                console.log(`${key}:`, value);
+                console.log(`📝 ${key}: ${value}`);
             }
         }
-        console.log('=== END FORM DATA ===');
+        console.log('=======================');
 
         try {
+            console.log('🚀 Sending registration request...');
+            
             const res = await fetch(`${API_BASE}/auth/register`, {
                 method: 'POST',
                 body: payload,
+                // NOTE: Don't set Content-Type header - let browser set it with boundary
             });
 
+            const responseText = await res.text();
+            console.log('📨 Response status:', res.status);
+            console.log('📨 Response body:', responseText);
+
             if (!res.ok) {
-                let errText = await res.text();
+                let errText = responseText;
                 try {
-                    const json = JSON.parse(errText);
+                    const json = JSON.parse(responseText);
                     errText = json.message || JSON.stringify(json);
                 } catch (_) {
                     // keep text as is
                 }
-                console.error('Server error:', errText);
+                console.error('❌ Server error:', errText);
                 setFeedbackMsg({ type: 'error', text: `Signup failed: ${errText}` });
                 setSubmitting(false);
                 return;
             }
 
-            const data = await res.json();
+            const data = JSON.parse(responseText);
+            console.log('✅ Registration successful:', data);
 
             const returnedUser: User = data.user || {
                 id: String(Date.now()),
@@ -450,13 +474,11 @@ export const SignupForm: React.FC<SignupFormProps> = ({ role, email, onComplete,
                 city: formData.city,
                 otherCity: formData.city === 'Other' ? formData.otherCity : undefined,
                 address: formData.address,
-                selfie: selfie || undefined,
-                governmentId: governmentIdFile || undefined,
             } as User;
 
             onComplete(returnedUser);
         } catch (err) {
-            console.error('Signup error', err);
+            console.error('❌ Signup error', err);
             setFeedbackMsg({ type: 'error', text: 'Cannot reach server. Check internet connection or try again.' });
         } finally {
             setSubmitting(false);
