@@ -112,7 +112,6 @@ export interface SubscriptionPlan {
 export type View = 
   | 'landing' 
   | 'auth'
-  | 'roleSelection'
   | 'signup' 
   | 'clientDashboard' 
   | 'cleanerDashboard' 

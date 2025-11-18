@@ -7,7 +7,6 @@ import { SignupForm } from './components/SignupForm';
 import { StarIcon } from './components/icons';
 import { Dashboard } from './components/Dashboard';
 import { AdminDashboard } from './components/AdminDashboard';
-import { RoleSelection } from './components/RoleSelection';
 import { SubscriptionPage } from './components/SubscriptionPage';
 import { ClientDashboard } from './components/ClientDashboard';
 import { BookingModal } from './components/BookingModal';
@@ -67,7 +66,6 @@ const App: React.FC = () => {
     const [allCleaners, setAllCleaners] = useState<Cleaner[]>([]);
     const [selectedCleaner, setSelectedCleaner] = useState<Cleaner | null>(null);
     
-    const [signupRole, setSignupRole] = useState<UserRole | null>(null);
     const [signupEmail, setSignupEmail] = useState<string | null>(null);
     const [signupPassword, setSignupPassword] = useState<string | null>(null);
     
@@ -180,14 +178,9 @@ const App: React.FC = () => {
         setAuthMessage(null);
         setSignupEmail(email);
         setSignupPassword(password);
-        setView('roleSelection');
-    };
-    
-    const handleRoleSelected = (role: UserRole) => {
-        setSignupRole(role);
         setView('signup');
     };
-
+    
     const handleSignupComplete = async (newUser: User) => {
         if (!signupPassword) {
             alert("An error occurred during signup. Password was not provided.");
@@ -404,11 +397,9 @@ const App: React.FC = () => {
                     authMessage={authMessage}
                     onAuthMessageDismiss={() => setAuthMessage(null)}
                 />;
-            case 'roleSelection':
-                 return <RoleSelection onSelect={handleRoleSelected} />;
             case 'signup':
-                if (signupRole && signupEmail) {
-                    return <SignupForm role={signupRole} email={signupEmail} onComplete={handleSignupComplete} onNavigate={handleNavigate}/>;
+                if (signupEmail) {
+                    return <SignupForm email={signupEmail} onComplete={handleSignupComplete} onNavigate={handleNavigate}/>;
                 }
                 handleNavigate('auth');
                 return null;
