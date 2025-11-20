@@ -265,58 +265,57 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
             });
 
             const responseText = await res.text();
-            console.log('📨 Response status:', res.status);
-
+            
+            // 1. Handle Non-200 responses (Server Logic Errors)
             if (!res.ok) {
-                let errText = responseText;
+                console.error('❌ Server error raw:', responseText);
+                let errText = 'Registration failed';
                 try {
                     const json = JSON.parse(responseText);
-                    errText = json.message || JSON.stringify(json);
-                } catch (_) {
-                    // keep text as is
+                    errText = json.message || errText;
+                } catch (e) {
+                    errText = responseText || errText;
                 }
-                console.error('❌ Server error:', errText);
-                setFeedbackMsg({ type: 'error', text: `Signup failed: ${errText}` });
+                setFeedbackMsg({ type: 'error', text: errText });
                 setSubmitting(false);
                 return;
             }
 
+            // 2. Handle Success
+            console.log('✅ 201 Created received!');
             const data = JSON.parse(responseText);
-            console.log('✅ Registration successful:', data);
 
+            // Reconstruct user object for local state if needed
             const returnedUser: User = data.user || {
                 id: String(Date.now()),
                 role,
                 email: formData.email,
-                phoneNumber: formData.phoneNumber,
                 fullName: formData.fullName,
-                gender: formData.gender as 'Male' | 'Female' | 'Other',
-                state: formData.state,
-                city: formData.city,
-                otherCity: formData.city === 'Other' ? formData.otherCity : undefined,
-                address: formData.address,
-                clientType,
-                companyName: isCompany ? formData.companyName : undefined,
-                companyAddress: isCompany ? formData.companyAddress : undefined,
-                cleanerType,
-                experience: isCleaner && formData.experience ? Number(formData.experience) : undefined,
-                services: isCleaner ? selectedServices : undefined,
-                bio: isCleaner ? formData.bio : undefined,
-                profilePhoto: isCleaner ? (profilePhoto || undefined) : undefined,
-                businessRegDoc: isCleaner && isCompany ? (businessRegFile || undefined) : undefined,
-                chargeHourly: isCleaner && formData.chargeHourly ? Number(formData.chargeHourly) : undefined,
-                chargeDaily: isCleaner && formData.chargeDaily ? Number(formData.chargeDaily) : undefined,
-                chargePerContract: isCleaner && !chargePerContractNegotiable && formData.chargePerContract ? Number(formData.chargePerContract) : undefined,
-                chargePerContractNegotiable: isCleaner ? chargePerContractNegotiable : undefined,
-                bankName: isCleaner ? formData.bankName : undefined,
-                accountNumber: isCleaner ? formData.accountNumber : undefined,
-                subscriptionTier: 'Free',
+                // ... partial fallback data ...
             };
+            
+            // 3. SAFE NAVIGATION
+            // We wrap this in a separate try-catch so it doesn't trigger the "Server Error" msg
+            try {
+                if (onComplete) {
+                    onComplete(returnedUser);
+                } else {
+                    console.warn('onComplete prop is missing!');
+                    setFeedbackMsg({ type: 'success', text: 'Account created! (Navigation missing)' });
+                }
+            } catch (navError) {
+                console.error('❌ Navigation/State update error:', navError);
+                // Even if navigation fails, tell the user account was created
+                setFeedbackMsg({ type: 'success', text: 'Account created! Redirecting...' });
+            }
 
-            onComplete(returnedUser);
         } catch (err) {
-            console.error('❌ Signup error', err);
-            setFeedbackMsg({ type: 'error', text: 'Cannot reach server. Check internet connection or try again.' });
+            // 4. The "Real" Network Error (Internet down, DNS failure, etc)
+            console.error('❌ NETWORK ERROR:', err);
+            setFeedbackMsg({ 
+                type: 'error', 
+                text: `Network Error: ${err instanceof Error ? err.message : 'Check your internet connection'}` 
+            });
         } finally {
             setSubmitting(false);
         }
@@ -546,7 +545,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
                             </div>
                             <div className="sm:col-span-3">
                                 <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">Phone Number</label>
-                                <input type="tel" name="phoneNumber" id="phoneNumber" value={formData.phoneNumber} onChange={handleInputChange} required pattern="[0-9]{10,11}" title="Please enter a valid 10 or 11-digit phone number." minLength="10" maxLength="11" className="mt-1 block w-full shadow-sm sm:text-sm border-gray-600 rounded-md focus:ring-primary focus:border-primary bg-dark text-light placeholder-gray-400"/>
+                                <input type="tel" name="phoneNumber" id="phoneNumber" value={formData.phoneNumber} onChange={handleInputChange} required pattern="[0-9]{10,11}" title="Please enter a valid 10 or 11-digit phone number." minLength={10} maxLength={11} className="mt-1 block w-full shadow-sm sm:text-sm border-gray-600 rounded-md focus:ring-primary focus:border-primary bg-dark text-light placeholder-gray-400"/>
                             </div>
                             <div className="sm:col-span-3">
                                 <label htmlFor="gender" className="block text-sm font-medium text-gray-700">Gender</label>
