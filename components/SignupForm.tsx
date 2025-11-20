@@ -66,7 +66,10 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
     const [submitting, setSubmitting] = useState(false);
     const [feedbackMsg, setFeedbackMsg] = useState<FeedbackMessage | null>(null);
 
-    const API_BASE = (import.meta.env as any).VITE_API_URL || 'https://cleanconnect-backend-mzc4.onrender.com/api';
+    // Get the base URL from env, remove trailing slash if present
+const ENV_URL = ((import.meta.env as any).VITE_API_URL || 'https://cleanconnect-backend-mzc4.onrender.com').replace(/\/$/, '');
+// Ensure we always append /api
+const API_BASE = `${ENV_URL}/api`;
 
     // Constants for validation
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
