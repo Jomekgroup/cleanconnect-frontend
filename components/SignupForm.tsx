@@ -171,6 +171,9 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        e.stopPropagation(); // 1. Stops the "Ghost" click from bubbling up
+
+        if (submitting) return; // 2. Blocks double-clicks instantly
         
         const validationError = validateForm();
         if (validationError) {
