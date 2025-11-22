@@ -181,21 +181,11 @@ const App: React.FC = () => {
         setView('signup');
     };
     
-    const handleSignupComplete = async (newUser: User) => {
-        if (!signupPassword) {
-            alert("An error occurred during signup. Password was not provided.");
-            handleNavigateToAuth('signup');
-            return;
-        }
-        const newUserWithPassword: User = { ...newUser, password: signupPassword };
-        try {
-            await apiService.register(newUserWithPassword);
-            setAuthMessage({ type: 'success', text: "Account created! Please log in." });
-            handleNavigateToAuth('login');
-        } catch (error: any) {
-            alert(error.message || "Signup failed. A user with this email may already exist.");
-            handleNavigateToAuth('login');
-        }
+    // ✅ CRITICAL FIX: Removed duplicate registration call
+    const handleSignupComplete = (newUser: User) => {
+        // Registration is already done in SignupForm. We just need to redirect.
+        setAuthMessage({ type: 'success', text: "Account created successfully! Please log in." });
+        handleNavigateToAuth('login');
     };
 
     const handleLogout = () => {
@@ -522,3 +512,12 @@ const App: React.FC = () => {
 };
 
 export default App;
+```
+
+### 🚀 Deploy the Fix
+1.  **Update:** Replace `src/App.tsx` with the code above.
+2.  **Push:**
+    ```bash
+    git add src/App.tsx
+    git commit -m "Fix double registration in App.tsx"
+    git push origin main
