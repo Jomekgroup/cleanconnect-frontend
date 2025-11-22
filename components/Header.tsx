@@ -26,10 +26,8 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ user, onNavigate, onLogout, onNavigateToAuth }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-    // Track image loading errors
     const [imageError, setImageError] = useState(false);
 
-    // Reset error state when user changes
     useEffect(() => {
         setImageError(false);
     }, [user?.photoUrl]);
@@ -49,11 +47,6 @@ export const Header: React.FC<HeaderProps> = ({ user, onNavigate, onLogout, onNa
         setIsProfileMenuOpen(false);
     };
 
-    // DEBUG: Log the photo URL to verify it exists
-    if (user && user.photoUrl) {
-        // console.log("Header attempting to load:", user.photoUrl);
-    }
-
     return (
         <header className="bg-white shadow-sm sticky top-0 z-50">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -66,64 +59,78 @@ export const Header: React.FC<HeaderProps> = ({ user, onNavigate, onLogout, onNa
                     </div>
 
                     {/* Desktop Navigation */}
-                    <nav className="hidden md:flex space-x-8">
+                    <nav className="hidden md:flex items-center space-x-8">
                         <button onClick={() => handleNavClick('landing')} className="text-gray-600 hover:text-primary font-medium">Home</button>
                         <button onClick={() => handleNavClick('about')} className="text-gray-600 hover:text-primary font-medium">About</button>
+                        
+                        {/* ✅ Dashboard Link is now VISIBLE here if logged in */}
+                        {user && (
+                            <button 
+                                onClick={() => handleNavClick(user.role === 'client' ? 'clientDashboard' : 'cleanerDashboard')}
+                                className="text-primary font-bold hover:text-secondary"
+                            >
+                                Dashboard
+                            </button>
+                        )}
+                        
                         <button onClick={() => handleNavClick('servicesPage')} className="text-gray-600 hover:text-primary font-medium">Services</button>
                         <button onClick={() => handleNavClick('contact')} className="text-gray-600 hover:text-primary font-medium">Contact</button>
                     </nav>
 
-                    {/* User Menu / Auth Buttons */}
+                    {/* User Profile Section (Top Right) */}
                     <div className="hidden md:flex items-center space-x-4">
                         {user ? (
-                            <div className="relative">
+                            <div className="relative ml-4">
                                 <button 
                                     onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                                    className="flex items-center space-x-2 focus:outline-none"
+                                    className="flex items-center space-x-3 focus:outline-none bg-gray-50 hover:bg-gray-100 rounded-full pl-1 pr-4 py-1 transition-colors border border-gray-200"
                                 >
-                                    <div className="h-9 w-9 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center relative">
-                                        {/* ✅ FIXED: Smart Fallback Logic */}
+                                    {/* Profile Picture (Left of Name) */}
+                                    <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-white shadow-sm bg-gray-200 flex items-center justify-center">
                                         {user.photoUrl && !imageError ? (
                                             <img 
                                                 src={user.photoUrl} 
                                                 alt={user.fullName} 
                                                 className="h-full w-full object-cover"
-                                                onError={(e) => {
-                                                    console.error("Image failed to load:", user.photoUrl);
-                                                    setImageError(true); // Trigger fallback
-                                                }}
+                                                onError={() => setImageError(true)}
                                             />
                                         ) : (
                                             <span className="text-sm font-bold text-gray-600">{getInitials(user.fullName)}</span>
                                         )}
                                     </div>
-                                    <span className="text-sm font-medium text-gray-700">{user.fullName}</span>
+                                    
+                                    {/* Name & Email (Right of Picture) */}
+                                    <div className="text-left hidden lg:block">
+                                        <p className="text-sm font-semibold text-gray-700 leading-none">{user.fullName}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">{user.email}</p>
+                                    </div>
+                                    
+                                    {/* Dropdown Arrow */}
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    </svg>
                                 </button>
 
-                                {/* Dropdown */}
+                                {/* Dropdown Menu */}
                                 {isProfileMenuOpen && (
-                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5">
-                                        <div className="px-4 py-2 border-b">
-                                            <p className="text-xs text-gray-500">Signed in as</p>
-                                            <p className="text-sm font-bold truncate">{user.email}</p>
+                                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-2 ring-1 ring-black ring-opacity-5 transform origin-top-right">
+                                        <div className="px-4 py-3 border-b border-gray-100 lg:hidden">
+                                            <p className="text-sm font-bold text-gray-900">{user.fullName}</p>
+                                            <p className="text-xs text-gray-500 truncate">{user.email}</p>
                                         </div>
-                                        <button 
-                                            onClick={() => handleNavClick(user.role === 'client' ? 'clientDashboard' : 'cleanerDashboard')}
-                                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                        >
-                                            Dashboard
-                                        </button>
+                                        
                                         {user.role === 'cleaner' && (
                                              <button 
                                                 onClick={() => handleNavClick('subscription')}
-                                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary"
                                             >
-                                                Subscription
+                                                My Subscription
                                             </button>
                                         )}
+                                        
                                         <button 
                                             onClick={() => { onLogout(); setIsProfileMenuOpen(false); }}
-                                            className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                                            className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                                         >
                                             Sign out
                                         </button>
@@ -149,15 +156,29 @@ export const Header: React.FC<HeaderProps> = ({ user, onNavigate, onLogout, onNa
 
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
-                <div className="md:hidden bg-white border-t border-gray-100">
-                    <div className="px-2 pt-2 pb-3 space-y-1">
+                <div className="md:hidden bg-white border-t border-gray-100 shadow-lg">
+                    <div className="px-4 pt-4 pb-2 flex items-center space-x-3 border-b border-gray-100 mb-2">
+                        {user && (
+                             <>
+                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                    {getInitials(user.fullName)}
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-gray-900">{user.fullName}</p>
+                                    <p className="text-xs text-gray-500">{user.email}</p>
+                                </div>
+                             </>
+                        )}
+                    </div>
+                    <div className="px-2 pb-3 space-y-1">
                         <button onClick={() => handleNavClick('landing')} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary hover:bg-gray-50">Home</button>
+                        {user && (
+                            <button onClick={() => handleNavClick(user.role === 'client' ? 'clientDashboard' : 'cleanerDashboard')} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-primary bg-primary/5">Dashboard</button>
+                        )}
                         <button onClick={() => handleNavClick('about')} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary hover:bg-gray-50">About</button>
+                        
                         {user ? (
-                            <>
-                                <button onClick={() => handleNavClick(user.role === 'client' ? 'clientDashboard' : 'cleanerDashboard')} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary hover:bg-gray-50">Dashboard</button>
-                                <button onClick={onLogout} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50">Sign out</button>
-                            </>
+                            <button onClick={onLogout} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50">Sign out</button>
                         ) : (
                             <div className="mt-4 flex flex-col space-y-2 px-3">
                                 <button onClick={() => onNavigateToAuth('login')} className="w-full text-center border border-gray-300 text-gray-700 px-4 py-2 rounded-md font-medium">Log in</button>
