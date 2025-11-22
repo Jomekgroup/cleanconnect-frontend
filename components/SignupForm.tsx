@@ -1,3 +1,5 @@
+// File: components/SignupForm.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole, View } from '../types';
 import { NIGERIA_LOCATIONS } from '../constants/locations';
@@ -16,6 +18,10 @@ interface FeedbackMessage {
     type: 'error' | 'success';
     text: string;
 }
+
+// 🛑 GLOBAL LOCK: Exists outside the component to prevent race conditions absolutely
+// This variable survives even if React re-renders the component.
+let globalSubmitLock = false;
 
 const FormSection: React.FC<{ title: string; children: React.ReactNode, description?: string }> = ({ title, description, children }) => (
     <div className="pt-8">
@@ -65,15 +71,20 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [cities, setCities] = useState<string[]>([]);
     
-    // UI State for loading spinner
     const [submitting, setSubmitting] = useState(false);
-    // 🛡️ INSTANT LOCK: Ref updates synchronously, blocking double clicks immediately
-    const isSubmittingRef = useRef(false);
-    
     const [feedbackMsg, setFeedbackMsg] = useState<FeedbackMessage | null>(null);
+    
+    // 🛡️ STICKY SUCCESS: Once true, ignore all future errors/clicks
+    const [isSuccess, setIsSuccess] = useState(false);
 
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; 
     const VALID_FILE_TYPES = ["image/jpeg", "image/png", "application/pdf"];
+
+    // Reset global lock when component mounts (e.g. if user refreshes)
+    useEffect(() => {
+        globalSubmitLock = false;
+        return () => { globalSubmitLock = false; };
+    }, []);
 
     useEffect(() => {
         if (formData.state) {
@@ -88,7 +99,8 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-        if (feedbackMsg) setFeedbackMsg(null);
+        // Only clear error if we haven't succeeded yet
+        if (feedbackMsg && !isSuccess) setFeedbackMsg(null);
     };
 
     const handleServiceToggle = (service: string) => {
@@ -128,7 +140,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
                 setBusinessRegFile(file);
                 break;
         }
-        setFeedbackMsg(null);
+        if (!isSuccess) setFeedbackMsg(null);
     };
 
     const sanitizeInput = (input: string): string => {
@@ -160,11 +172,11 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopPropagation(); // Stop event bubbling
 
-        // 🛡️ SAFETY CHECK: Check the Ref (Instant)
-        if (isSubmittingRef.current) {
-            console.log('🛑 Blocked double submission');
+        // 🛡️ GLOBAL CHECK: If already submitting or already succeeded, STOP immediately.
+        if (globalSubmitLock || isSuccess || submitting) {
+            console.warn('🛑 Submission blocked: Already in progress or succeeded.');
             return;
         }
 
@@ -174,9 +186,9 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
             return;
         }
 
-        // 🔒 LOCK THE FORM INSTANTLY
-        isSubmittingRef.current = true; 
-        setSubmitting(true); // Update UI
+        // 🔒 ENGAGE LOCKS
+        globalSubmitLock = true;
+        setSubmitting(true);
         setFeedbackMsg(null);
 
         const isCleaner = userKind.includes('Cleaner');
@@ -224,9 +236,15 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
         }
 
         try {
-            console.log('🚀 Sending registration request...');
+            console.log('🚀 Sending registration request via apiService...');
+            // Use the robust apiService
             const data = await apiService.register(payload);
             console.log('✅ Registration successful:', data);
+
+            // 🎉 ACTIVATE STICKY SUCCESS
+            // This prevents any subsequent errors from overwriting the message
+            setIsSuccess(true);
+            setFeedbackMsg({ type: 'success', text: 'Account created! Redirecting...' });
 
             const returnedUser: User = data.user || {
                 id: String(Date.now()),
@@ -235,24 +253,28 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
                 fullName: formData.fullName,
             };
             
-            setFeedbackMsg({ type: 'success', text: 'Account created! Redirecting...' });
-            
             if (onComplete) {
-                // Small delay to ensure user sees success message
-                setTimeout(() => onComplete(returnedUser), 1500);
+                // Delay slightly longer to ensure UI is stable and message is read
+                setTimeout(() => {
+                    onComplete(returnedUser);
+                    // Note: We do NOT unlock globalSubmitLock here. We want it locked until the page changes.
+                }, 2000);
             }
 
         } catch (err: any) {
             console.error('❌ SIGNUP ERROR:', err);
-            setFeedbackMsg({ 
-                type: 'error', 
-                text: err.message || 'Registration failed. Please try again.'
-            });
-            // Only unlock if there was an error
-            isSubmittingRef.current = false;
-            setSubmitting(false);
+            
+            // Only show error if we haven't already succeeded
+            if (!isSuccess) {
+                setFeedbackMsg({ 
+                    type: 'error', 
+                    text: err.message || 'Registration failed. Please try again.'
+                });
+                // Unlock ONLY on failure so they can try again
+                globalSubmitLock = false;
+                setSubmitting(false);
+            }
         }
-        // Note: We DO NOT unlock in finally() on success, because we want to stay locked while redirecting
     };
 
     const isFormValid = () => !validateForm();
@@ -458,7 +480,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
                     )}
 
                     <form onSubmit={handleSubmit} className="divide-y divide-gray-200">
-                        {/* FormSection children omitted for brevity, they are handled by the logic above */}
+                        {/* Form contents managed above */}
                         <FormSection title="Account Type & Personal Information" description="Start by telling us who you are.">
                            <div className="sm:col-span-6">
                                 <label htmlFor="userKind" className="block text-sm font-medium text-gray-700">Type of User *</label>
@@ -552,10 +574,11 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
                                 </div>
                             </div>
                             <div className="flex justify-end mt-4">
-                                <button type="button" onClick={() => onNavigate('landing')} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
-                                    Cancel
-                                </button>
-                                <button type="submit" disabled={!isFormValid() || submitting} className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                <button 
+                                    type="submit" 
+                                    disabled={!isFormValid() || submitting || globalSubmitLock} 
+                                    className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
                                     {submitting ? <><LoadingSpinner /> Creating...</> : 'Create Account'}
                                 </button>
                             </div>
