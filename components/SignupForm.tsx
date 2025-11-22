@@ -6,6 +6,9 @@ import { apiService } from '../services/apiService';
 
 interface SignupFormProps {
     email: string;
+    // Optional password prop. If provided by App.tsx, we use it.
+    // If not (direct access), we show a password field.
+    password?: string; 
     onComplete: (user: User) => void;
     onNavigate: (view: View) => void;
 }
@@ -17,7 +20,8 @@ interface FeedbackMessage {
     text: string;
 }
 
-// 🛑 GLOBAL LOCK: Prevents concurrent submissions across re-renders
+// 🛑 GLOBAL LOCK: Exists outside the component to prevent race conditions absolutely
+// This variable survives even if React re-renders the component.
 let globalSubmitLock = false;
 
 const FormSection: React.FC<{ title: string; children: React.ReactNode, description?: string }> = ({ title, description, children }) => (
@@ -37,11 +41,13 @@ const LoadingSpinner: React.FC = () => (
     </svg>
 );
 
-export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNavigate }) => {
+export const SignupForm: React.FC<SignupFormProps> = ({ email, password, onComplete, onNavigate }) => {
     const [userKind, setUserKind] = useState<UserKind>('');
     const [formData, setFormData] = useState({
         fullName: '',
         email: email,
+        // Initialize password with prop if available, else empty string
+        password: password || '', 
         phoneNumber: '',
         gender: 'Male',
         state: '',
@@ -71,13 +77,13 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
     const [submitting, setSubmitting] = useState(false);
     const [feedbackMsg, setFeedbackMsg] = useState<FeedbackMessage | null>(null);
     
-    // 🛡️ INSTANT SUCCESS TRACKER: Use Ref to share state between async closures
+    // 🛡️ STICKY SUCCESS: Once true, ignore all future errors/clicks
     const isSuccessRef = useRef(false);
 
     const MAX_FILE_SIZE = 5 * 1024 * 1024; 
     const VALID_FILE_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 
-    // Reset locks on mount
+    // Reset global lock when component mounts (e.g. if user refreshes)
     useEffect(() => {
         globalSubmitLock = false;
         isSuccessRef.current = false;
@@ -100,6 +106,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        // Only clear error if we haven't succeeded yet
         if (feedbackMsg && !isSuccessRef.current) setFeedbackMsg(null);
     };
 
@@ -149,6 +156,16 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
 
     const validateForm = (): string | null => {
         if (!agreedToTerms) return 'You must agree to the terms and conditions.';
+        
+        // Validate Password (either passed prop or local state)
+        const passToCheck = formData.password;
+        // Matches: At least 8 characters, 1 lowercase, 1 uppercase, 1 number
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+        
+        if (!passToCheck || !passwordRegex.test(passToCheck)) {
+            return 'Password must be at least 8 characters, with 1 uppercase, 1 lowercase, and 1 number.';
+        }
+
         const commonFields = userKind && formData.fullName && formData.email && formData.phoneNumber && formData.state && formData.city && formData.address;
         if (!commonFields) return 'Please fill in all required personal information fields.';
         if (formData.city === 'Other' && !formData.otherCity) return 'Please specify your city/town when selecting "Other".';
@@ -176,6 +193,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
 
         // 🛡️ GLOBAL CHECK: Instant rejection if locked or succeeded
         if (globalSubmitLock || isSuccessRef.current || submitting) {
+            console.warn('🛑 Submission blocked: Already in progress or succeeded.');
             return;
         }
 
@@ -199,7 +217,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
         const payload = new FormData();
         payload.append('fullName', sanitizeInput(formData.fullName));
         payload.append('email', formData.email);
-        payload.append('password', 'defaultPassword123!');
+        payload.append('password', formData.password); // ✅ Use REAL password
         payload.append('phoneNumber', formData.phoneNumber);
         payload.append('gender', formData.gender);
         payload.append('state', formData.state);
@@ -235,11 +253,11 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
         }
 
         try {
-            console.log('🚀 Sending registration request...');
+            console.log('🚀 Sending registration request via apiService...');
             const data = await apiService.register(payload);
             console.log('✅ Registration successful:', data);
 
-            // 🎉 ACTIVATE STICKY SUCCESS (VIA REF FOR INSTANT UPDATE)
+            // 🎉 ACTIVATE STICKY SUCCESS
             isSuccessRef.current = true;
             setFeedbackMsg({ type: 'success', text: 'Account created! Redirecting...' });
 
@@ -496,6 +514,25 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
                                 <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email Address</label>
                                 <input type="email" name="email" id="email" value={formData.email} disabled className="mt-1 block w-full shadow-sm sm:text-sm border-gray-600 rounded-md focus:ring-primary focus:border-primary bg-gray-800 text-gray-400 placeholder-gray-400"/>
                             </div>
+                            {/* ✅ PASSWORD FIELD ADDED IF NOT PROVIDED BY PROPS */}
+                            {/* If password was passed via props (from App.tsx), we hide this field. */}
+                            {/* If password is missing (direct access), we show it. */}
+                            {!password && (
+                                <div className="sm:col-span-3">
+                                    <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+                                    <input 
+                                        type="password" 
+                                        name="password" 
+                                        id="password" 
+                                        value={formData.password} 
+                                        onChange={handleInputChange} 
+                                        required 
+                                        minLength={6}
+                                        placeholder="At least 8 chars, 1 upper, 1 lower, 1 number"
+                                        className="mt-1 block w-full shadow-sm sm:text-sm border-gray-600 rounded-md focus:ring-primary focus:border-primary bg-dark text-light placeholder-gray-400"
+                                    />
+                                </div>
+                            )}
                             <div className="sm:col-span-3">
                                 <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">Phone Number</label>
                                 <input type="tel" name="phoneNumber" id="phoneNumber" value={formData.phoneNumber} onChange={handleInputChange} required pattern="[0-9]{10,11}" title="Please enter a valid 10 or 11-digit phone number." minLength={10} maxLength={11} className="mt-1 block w-full shadow-sm sm:text-sm border-gray-600 rounded-md focus:ring-primary focus:border-primary bg-dark text-light placeholder-gray-400"/>
