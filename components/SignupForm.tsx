@@ -1,5 +1,3 @@
-// File: components/SignupForm.tsx
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole, View } from '../types';
 import { NIGERIA_LOCATIONS } from '../constants/locations';
@@ -19,8 +17,7 @@ interface FeedbackMessage {
     text: string;
 }
 
-// 🛑 GLOBAL LOCK: Exists outside the component to prevent race conditions absolutely
-// This variable survives even if React re-renders the component.
+// 🛑 GLOBAL LOCK: Prevents concurrent submissions across re-renders
 let globalSubmitLock = false;
 
 const FormSection: React.FC<{ title: string; children: React.ReactNode, description?: string }> = ({ title, description, children }) => (
@@ -74,16 +71,20 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
     const [submitting, setSubmitting] = useState(false);
     const [feedbackMsg, setFeedbackMsg] = useState<FeedbackMessage | null>(null);
     
-    // 🛡️ STICKY SUCCESS: Once true, ignore all future errors/clicks
-    const [isSuccess, setIsSuccess] = useState(false);
+    // 🛡️ INSTANT SUCCESS TRACKER: Use Ref to share state between async closures
+    const isSuccessRef = useRef(false);
 
     const MAX_FILE_SIZE = 5 * 1024 * 1024; 
     const VALID_FILE_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 
-    // Reset global lock when component mounts (e.g. if user refreshes)
+    // Reset locks on mount
     useEffect(() => {
         globalSubmitLock = false;
-        return () => { globalSubmitLock = false; };
+        isSuccessRef.current = false;
+        return () => { 
+            globalSubmitLock = false;
+            isSuccessRef.current = false;
+        };
     }, []);
 
     useEffect(() => {
@@ -99,8 +100,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-        // Only clear error if we haven't succeeded yet
-        if (feedbackMsg && !isSuccess) setFeedbackMsg(null);
+        if (feedbackMsg && !isSuccessRef.current) setFeedbackMsg(null);
     };
 
     const handleServiceToggle = (service: string) => {
@@ -140,7 +140,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
                 setBusinessRegFile(file);
                 break;
         }
-        if (!isSuccess) setFeedbackMsg(null);
+        if (!isSuccessRef.current) setFeedbackMsg(null);
     };
 
     const sanitizeInput = (input: string): string => {
@@ -172,11 +172,10 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        e.stopPropagation(); // Stop event bubbling
+        e.stopPropagation();
 
-        // 🛡️ GLOBAL CHECK: If already submitting or already succeeded, STOP immediately.
-        if (globalSubmitLock || isSuccess || submitting) {
-            console.warn('🛑 Submission blocked: Already in progress or succeeded.');
+        // 🛡️ GLOBAL CHECK: Instant rejection if locked or succeeded
+        if (globalSubmitLock || isSuccessRef.current || submitting) {
             return;
         }
 
@@ -236,14 +235,12 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
         }
 
         try {
-            console.log('🚀 Sending registration request via apiService...');
-            // Use the robust apiService
+            console.log('🚀 Sending registration request...');
             const data = await apiService.register(payload);
             console.log('✅ Registration successful:', data);
 
-            // 🎉 ACTIVATE STICKY SUCCESS
-            // This prevents any subsequent errors from overwriting the message
-            setIsSuccess(true);
+            // 🎉 ACTIVATE STICKY SUCCESS (VIA REF FOR INSTANT UPDATE)
+            isSuccessRef.current = true;
             setFeedbackMsg({ type: 'success', text: 'Account created! Redirecting...' });
 
             const returnedUser: User = data.user || {
@@ -254,32 +251,31 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
             };
             
             if (onComplete) {
-                // Delay slightly longer to ensure UI is stable and message is read
                 setTimeout(() => {
                     onComplete(returnedUser);
-                    // Note: We do NOT unlock globalSubmitLock here. We want it locked until the page changes.
-                }, 2000);
+                }, 1500);
             }
 
         } catch (err: any) {
             console.error('❌ SIGNUP ERROR:', err);
             
-            // Only show error if we haven't already succeeded
-            if (!isSuccess) {
-                setFeedbackMsg({ 
-                    type: 'error', 
-                    text: err.message || 'Registration failed. Please try again.'
-                });
-                // Unlock ONLY on failure so they can try again
-                globalSubmitLock = false;
-                setSubmitting(false);
+            // 🛡️ CRITICAL CHECK: If success happened in another thread, ignore this error
+            if (isSuccessRef.current) {
+                console.warn('🙈 Ignoring error because success already occurred');
+                return;
             }
+
+            setFeedbackMsg({ 
+                type: 'error', 
+                text: err.message || 'Registration failed. Please try again.'
+            });
+            globalSubmitLock = false;
+            setSubmitting(false);
         }
     };
 
     const isFormValid = () => !validateForm();
 
-    // Add NIN field to the cleaner section
     const renderCleanerFields = () => (
         <>
             <FormSection title="Professional Profile" description="This information will be displayed publicly on your profile.">
@@ -589,3 +585,12 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
         </div>
     );
 };
+```
+
+### 🚀 How to Deploy this Fix
+1.  **Update:** Replace the file content.
+2.  **Push:**
+    ```bash
+    git add components/SignupForm.tsx
+    git commit -m "Fix race condition with useRef success tracking"
+    git push origin main
