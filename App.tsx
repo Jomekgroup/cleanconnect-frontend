@@ -41,8 +41,9 @@ const CleanerProfile: React.FC<CleanerProfileProps> = ({ cleaner, onNavigate, on
             <h2 className="text-3xl font-bold text-center">{cleaner.name}</h2>
             <div className="flex items-center justify-center mt-2 space-x-2 text-gray-700">
                 <StarIcon className="w-5 h-5 text-yellow-400" />
-                <span className="font-bold text-lg">{cleaner.rating.toFixed(1)}</span>
-                <span className="text-gray-500">({cleaner.reviews} reviews)</span>
+                {/* Safe Rating Display */}
+                <span className="font-bold text-lg">{Number(cleaner.rating || 0).toFixed(1)}</span>
+                <span className="text-gray-500">({cleaner.reviews || 0} reviews)</span>
             </div>
             <p className="mt-4 max-w-2xl mx-auto text-center">{cleaner.bio}</p>
              <div className="flex justify-center mt-8">
@@ -181,9 +182,10 @@ const App: React.FC = () => {
         setView('signup');
     };
     
-    // ✅ CRITICAL FIX: Removed duplicate registration call
+    // ✅ CRITICAL FIX 1: Simplified Success Handler
+    // We assume the SignupForm component has already successfully registered the user.
+    // We just need to redirect them to the login page now.
     const handleSignupComplete = (newUser: User) => {
-        // Registration is already done in SignupForm. We just need to redirect.
         setAuthMessage({ type: 'success', text: "Account created successfully! Please log in." });
         handleNavigateToAuth('login');
     };
@@ -388,8 +390,14 @@ const App: React.FC = () => {
                     onAuthMessageDismiss={() => setAuthMessage(null)}
                 />;
             case 'signup':
-                if (signupEmail) {
-                    return <SignupForm email={signupEmail} onComplete={handleSignupComplete} onNavigate={handleNavigate}/>;
+                // ✅ CRITICAL FIX 2: Pass password to SignupForm
+                if (signupEmail && signupPassword) {
+                    return <SignupForm 
+                        email={signupEmail} 
+                        password={signupPassword} 
+                        onComplete={handleSignupComplete} 
+                        onNavigate={handleNavigate}
+                    />;
                 }
                 handleNavigate('auth');
                 return null;
@@ -475,7 +483,6 @@ const App: React.FC = () => {
         <div className="min-h-screen flex flex-col font-sans bg-light">
             <Header user={user} onNavigate={handleNavigate} onLogout={handleLogout} onNavigateToAuth={handleNavigateToAuth} />
             <main className="flex-grow">
-                {/* Global error is now shown within specific components for better context */}
                 {renderContent()}
             </main>
             <Footer onNavigate={handleNavigate} />
