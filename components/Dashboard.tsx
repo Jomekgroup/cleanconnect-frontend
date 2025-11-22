@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, View, Receipt } from 'types';
+import { User, View, Receipt } from '../types';
 import { PencilIcon, StarIcon } from './icons';
 import { CLEANING_SERVICES } from '../constants/services';
 import { CLIENT_LIMITS } from '../constants/subscriptions';
@@ -35,7 +35,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onNavi
     const [activeTab, setActiveTab] = useState<'profile' | 'reviews'>('profile');
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<User>(user);
-    const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null);
+    
+    // ✅ CRITICAL FIX: Initialize preview with existing photoUrl
+    const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(user.photoUrl || null);
+    
     const subReceiptInputRef = useRef<HTMLInputElement>(null);
     const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
 
@@ -45,14 +48,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onNavi
 
 
     useEffect(() => {
-        setFormData(user); // Sync form data if user prop changes
-        if (user.profilePhoto && user.profilePhoto instanceof File) {
-            setProfilePhotoPreview(URL.createObjectURL(user.profilePhoto));
+        setFormData(user);
+        // Update preview if user data changes (e.g. after upload)
+        if (user.photoUrl) {
+             setProfilePhotoPreview(user.photoUrl);
         }
+        
         if (user.subscriptionEndDate) {
             const today = new Date();
             const endDate = new Date(user.subscriptionEndDate);
-            today.setHours(0, 0, 0, 0); // Normalize to the start of the day
+            today.setHours(0, 0, 0, 0); 
             const timeDiff = endDate.getTime() - today.getTime();
             const remaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
             setDaysRemaining(remaining);
@@ -207,6 +212,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onNavi
                     <div className="p-6 sm:flex sm:items-center sm:justify-between bg-gray-50 border-b">
                         <div className="sm:flex sm:items-center sm:space-x-5">
                              <div className="relative">
+                                {/* ✅ DASHBOARD IMAGE FIX */}
                                 <img className="h-20 w-20 rounded-full object-cover" src={profilePhotoPreview || 'https://avatar.iran.liara.run/public'} alt="Profile" />
                                 {isEditing && (
                                     <div className="absolute bottom-0 right-0">
@@ -309,7 +315,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onNavi
                                              <option value="">-- Add a service --</option>
                                              {CLEANING_SERVICES.filter(s => !formData.services?.includes(s)).map(service => (
                                                 <option key={service} value={service}>{service}</option>
-                                             ))}
+                                            ))}
                                         </select>
                                          <div className="flex flex-wrap gap-2">
                                             {formData.services?.map(s => (
@@ -339,39 +345,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onNavi
                                 <h3 className="text-lg font-medium text-gray-900 mt-6">Job History</h3>
                                 {isLimitReached ? (
                                     <div className="py-4 text-center text-gray-600 bg-gray-50 rounded-lg border mt-2">
-                                        <p className="font-semibold">Your job history is hidden.</p>
-                                        <p className="text-sm">Please upgrade your subscription plan to view your history and accept more jobs.</p>
+                                            <p className="font-semibold">Your job history is hidden.</p>
+                                            <p className="text-sm">Please upgrade your subscription plan to view your history and accept more jobs.</p>
                                     </div>
                                 ) : (
                                     <div className="py-4">
-                                        {user.bookingHistory && user.bookingHistory.length > 0 ? (
-                                            <ul className="space-y-3">
-                                                {user.bookingHistory.map((item) => (
-                                                    <li key={item.id} className="p-4 bg-gray-50 rounded-lg border flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                                                        <div className="flex-grow">
-                                                            <div className="flex justify-between items-center font-semibold">
-                                                                <span className="text-gray-800">{item.service}</span>
-                                                                <span className="text-primary">₦{item.amount.toLocaleString()}</span>
+                                            {user.bookingHistory && user.bookingHistory.length > 0 ? (
+                                                <ul className="space-y-3">
+                                                    {user.bookingHistory.map((item) => (
+                                                        <li key={item.id} className="p-4 bg-gray-50 rounded-lg border flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                                            <div className="flex-grow">
+                                                                <div className="flex justify-between items-center font-semibold">
+                                                                    <span className="text-gray-800">{item.service}</span>
+                                                                    <span className="text-primary">₦{item.amount.toLocaleString()}</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center text-sm mt-1">
+                                                                    <span className="text-gray-500">for {item.clientName}</span>
+                                                                     <span className="text-gray-500">{item.date}</span>
+                                                                </div>
                                                             </div>
-                                                            <div className="flex justify-between items-center text-sm mt-1">
-                                                                <span className="text-gray-500">for {item.clientName}</span>
-                                                                 <span className="text-gray-500">{item.date}</span>
+                                                            <div className="mt-3 sm:mt-0 sm:ml-4 flex-shrink-0 flex flex-col items-end gap-2">
+                                                                 <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                                                                    item.status === 'Upcoming' ? 'bg-blue-100 text-blue-800' :
+                                                                    item.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                                                }`}>
+                                                                    {item.status}
+                                                                </span>
                                                             </div>
-                                                        </div>
-                                                        <div className="mt-3 sm:mt-0 sm:ml-4 flex-shrink-0 flex flex-col items-end gap-2">
-                                                             <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                                                                item.status === 'Upcoming' ? 'bg-blue-100 text-blue-800' :
-                                                                item.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                                            }`}>
-                                                                {item.status}
-                                                            </span>
-                                                        </div>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        ) : (
-                                            <p className="text-sm text-gray-500 py-2">No jobs yet.</p>
-                                        )}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                <p className="text-sm text-gray-500 py-2">No jobs yet.</p>
+                                            )}
                                     </div>
                                 )}
                             </div>

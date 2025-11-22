@@ -8,6 +8,7 @@ import { CancellationConfirmationModal } from './CancellationConfirmationModal';
 import { ReviewModal } from './ReviewModal';
 import { apiService } from './apiService';
 
+// ... ServiceRecommendations component remains the same ...
 interface ServiceRecommendationsProps {
     isLoading: boolean;
     recommendations: string[];
@@ -28,9 +29,7 @@ const ServiceRecommendations: React.FC<ServiceRecommendationsProps> = ({ isLoadi
         );
     }
 
-    if (recommendations.length === 0) {
-        return null; // Don't show anything if there are no recommendations
-    }
+    if (recommendations.length === 0) return null;
 
     return (
         <div className="mt-8">
@@ -57,7 +56,7 @@ const ServiceRecommendations: React.FC<ServiceRecommendationsProps> = ({ isLoadi
 
 interface ClientDashboardProps {
     user: User;
-    allCleaners: Cleaner[]; // Receive all cleaners from App
+    allCleaners: Cleaner[];
     onSelectCleaner: (cleaner: Cleaner) => void;
     initialFilters?: { service: string, location: string } | null;
     clearInitialFilters: () => void;
@@ -92,7 +91,6 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, allClean
         setActiveFilters({ service: '', location: '' });
 
         try {
-            // The AI search now calls our backend via the apiService
             const resultIds = await getAiPoweredSearchResults(query);
             const results = resultIds
                 .map(id => allCleaners.find(c => c.id === id))
@@ -128,10 +126,10 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, allClean
             if (aiQuery.trim()) {
                 performSearch(aiQuery);
             }
-        }, 1000); // 1-second debounce
+        }, 1000);
 
         return () => clearTimeout(handler);
-    }, [aiQuery, allCleaners]); // Re-run if allCleaners changes
+    }, [aiQuery, allCleaners]);
     
     useEffect(() => {
         setIsRecsLoading(true);
@@ -140,10 +138,8 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, allClean
     }, [user]);
 
     const displayedCleaners = useMemo(() => {
-        if (appError) return []; // Don't display any cleaners if there was a connection error
-        if (searchResults) {
-            return searchResults;
-        }
+        if (appError) return [];
+        if (searchResults) return searchResults;
 
         const { service, location } = activeFilters;
         if (service || location) {
@@ -156,8 +152,6 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, allClean
                 return serviceMatch && locationMatch;
             });
         }
-
-        // By default, show all cleaners fetched from the server
         return allCleaners;
     }, [searchResults, activeFilters, allCleaners, appError]);
 
@@ -170,19 +164,17 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, allClean
     const handleAiQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setAiQuery(e.target.value);
         if (e.target.value.trim() === '') {
-            setSearchResults(null); // Clear AI results if input is empty
+            setSearchResults(null);
         }
     };
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setActiveFilters(prev => ({ ...prev, [name]: value }));
-        // Clear AI search when using manual filters
         setAiQuery('');
         setSearchResults(null);
     };
 
-    
     const handleRecommendationSelect = (service: string) => {
         const query = `Find a cleaner for ${service}`;
         setAiQuery(query);
@@ -223,12 +215,29 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, allClean
         }
     };
 
-    // ... The rest of the component remains largely the same ...
     return (
         <div className="p-4 sm:p-8 container mx-auto">
              <input type="file" ref={fileInputRef} onChange={handleFileSelected} className="hidden" accept="image/*,.pdf" />
-             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-                <h1 className="text-3xl font-bold text-dark text-center sm:text-left">Welcome back, {user.fullName.split(' ')[0]}!</h1>
+             
+             {/* ✅ DASHBOARD PROFILE SECTION (Picture + Welcome) */}
+             <div className="flex flex-col sm:flex-row items-center mb-8 gap-5">
+                <div className="h-20 w-20 rounded-full overflow-hidden border-4 border-white shadow-md bg-gray-200 flex-shrink-0">
+                    {user.photoUrl ? (
+                        <img 
+                            src={user.photoUrl} 
+                            alt={user.fullName} 
+                            className="h-full w-full object-cover"
+                        />
+                    ) : (
+                        <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-bold text-3xl">
+                            {user.fullName.charAt(0)}
+                        </div>
+                    )}
+                </div>
+                <div className="text-center sm:text-left">
+                    <h1 className="text-3xl font-bold text-dark">Welcome back, {user.fullName.split(' ')[0]}!</h1>
+                    <p className="text-gray-600">{user.email}</p>
+                </div>
             </div>
 
             <div className="border-b border-gray-200 mb-6">
@@ -244,7 +253,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, allClean
             
             {activeTab === 'find' && (
                 <div>
-                     <div className="bg-white p-6 rounded-lg shadow-md">
+                      <div className="bg-white p-6 rounded-lg shadow-md">
                         <div className="mb-6">
                             <label htmlFor="ai-search" className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
                                 <SparklesIcon className="w-5 h-5 text-primary"/>
@@ -283,16 +292,16 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, allClean
                                 <div className="relative mt-1">
                                     <BriefcaseIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                     <select 
-                                        id="service" 
-                                        name="service"
-                                        className="w-full pl-10 pr-8 p-3 bg-dark border border-gray-600 rounded-lg appearance-none text-light focus:outline-none focus:ring-2 focus:ring-primary"
-                                        value={activeFilters.service}
-                                        onChange={handleFilterChange}
+                                            id="service" 
+                                            name="service"
+                                            className="w-full pl-10 pr-8 p-3 bg-dark border border-gray-600 rounded-lg appearance-none text-light focus:outline-none focus:ring-2 focus:ring-primary"
+                                            value={activeFilters.service}
+                                            onChange={handleFilterChange}
                                     >
-                                        <option value="">All Services</option>
-                                        {CLEANING_SERVICES.map((serviceName) => (
-                                            <option key={serviceName} value={serviceName}>{serviceName}</option>
-                                        ))}
+                                            <option value="">All Services</option>
+                                            {CLEANING_SERVICES.map((serviceName) => (
+                                                <option key={serviceName} value={serviceName}>{serviceName}</option>
+                                            ))}
                                     </select>
                                     <ChevronDownIcon className="w-5 h-5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                                 </div>
@@ -302,13 +311,13 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, allClean
                                 <div className="relative mt-1">
                                     <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                     <input 
-                                        type="text" 
-                                        id="location" 
-                                        name="location"
-                                        placeholder="e.g., Ikeja, Lagos" 
-                                        className="w-full pl-10 p-3 bg-dark border-gray-600 rounded-lg text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
-                                        value={activeFilters.location}
-                                        onChange={handleFilterChange}
+                                            type="text" 
+                                            id="location" 
+                                            name="location"
+                                            placeholder="e.g., Ikeja, Lagos" 
+                                            className="w-full pl-10 p-3 bg-dark border-gray-600 rounded-lg text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
+                                            value={activeFilters.location}
+                                            onChange={handleFilterChange}
                                     />
                                 </div>
                             </div>
@@ -354,27 +363,27 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, allClean
                                 return (
                                 <li key={item.id} className="p-4 bg-gray-50 rounded-lg border flex flex-col sm:flex-row sm:items-start sm:justify-between">
                                     <div className="flex items-start gap-4 flex-grow">
-                                        {cleaner?.photoUrl && <img src={cleaner.photoUrl} alt={cleaner.name} className="w-16 h-16 rounded-lg object-cover hidden sm:block"/>}
-                                        <div className="flex-grow">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <p className="font-bold text-dark">{item.service}</p>
-                                                    <p className="text-sm text-gray-600">with {item.cleanerName}</p>
-                                                    <p className="text-sm text-gray-500">{item.date}</p>
+                                            {cleaner?.photoUrl && <img src={cleaner.photoUrl} alt={cleaner.name} className="w-16 h-16 rounded-lg object-cover hidden sm:block"/>}
+                                            <div className="flex-grow">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className="font-bold text-dark">{item.service}</p>
+                                                        <p className="text-sm text-gray-600">with {item.cleanerName}</p>
+                                                        <p className="text-sm text-gray-500">{item.date}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="font-bold text-lg text-primary">₦{(item.totalAmount || item.amount).toLocaleString()}</p>
+                                                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${ item.status === 'Upcoming' ? 'bg-blue-100 text-blue-800' : item.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }`}>
+                                                                {item.status}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="font-bold text-lg text-primary">₦{(item.totalAmount || item.amount).toLocaleString()}</p>
-                                                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${ item.status === 'Upcoming' ? 'bg-blue-100 text-blue-800' : item.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }`}>
-                                                        {item.status}
+                                                <div className="mt-2 text-xs">
+                                                     <span className={`font-semibold px-2 py-0.5 rounded-full ${getPaymentStatusBadgeClass(item.paymentStatus)}`}>
+                                                        {item.paymentMethod}: {item.paymentStatus}
                                                     </span>
                                                 </div>
                                             </div>
-                                            <div className="mt-2 text-xs">
-                                                 <span className={`font-semibold px-2 py-0.5 rounded-full ${getPaymentStatusBadgeClass(item.paymentStatus)}`}>
-                                                    {item.paymentMethod}: {item.paymentStatus}
-                                                </span>
-                                            </div>
-                                        </div>
                                     </div>
                                     <div className="mt-4 sm:mt-0 sm:ml-4 flex flex-col items-stretch sm:items-end justify-start gap-2 flex-shrink-0">
                                          {item.status === 'Upcoming' && <button onClick={() => setBookingToCancel(item)} className="w-full sm:w-auto text-center bg-red-100 text-red-700 px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-red-200">Cancel Booking</button>}
