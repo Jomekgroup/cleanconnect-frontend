@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, UserRole, View } from '../types';
 import { NIGERIA_LOCATIONS } from '../constants/locations';
 import { CLEANING_SERVICES } from '../constants/services';
-// ✅ Import the robust API service we created
 import { apiService } from '../services/apiService';
 
 interface SignupFormProps {
@@ -65,10 +64,14 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
     const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null);
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [cities, setCities] = useState<string[]>([]);
+    
+    // UI State for loading spinner
     const [submitting, setSubmitting] = useState(false);
+    // 🛡️ INSTANT LOCK: Ref updates synchronously, blocking double clicks immediately
+    const isSubmittingRef = useRef(false);
+    
     const [feedbackMsg, setFeedbackMsg] = useState<FeedbackMessage | null>(null);
 
-    // Constants for validation
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
     const VALID_FILE_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 
@@ -108,14 +111,11 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: 'photo' | 'governmentId' | 'businessReg') => {
         if (!e.target.files || !e.target.files[0]) return;
-        
         const file = e.target.files[0];
-        
         if (!validateFile(file)) {
             e.target.value = '';
             return;
         }
-
         switch (fileType) {
             case 'photo':
                 setProfilePhoto(file);
@@ -128,7 +128,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
                 setBusinessRegFile(file);
                 break;
         }
-        
         setFeedbackMsg(null);
     };
 
@@ -138,32 +137,22 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
 
     const validateForm = (): string | null => {
         if (!agreedToTerms) return 'You must agree to the terms and conditions.';
-        
         const commonFields = userKind && formData.fullName && formData.email && formData.phoneNumber && formData.state && formData.city && formData.address;
         if (!commonFields) return 'Please fill in all required personal information fields.';
-        
         if (formData.city === 'Other' && !formData.otherCity) return 'Please specify your city/town when selecting "Other".';
         if (!governmentIdFile) return 'Government ID is required for verification.';
         
         const isCompany = userKind.includes('Company');
-        if (isCompany && (!formData.companyName || !formData.companyAddress)) {
-            return 'Company name and address are required for company accounts.';
-        }
+        if (isCompany && (!formData.companyName || !formData.companyAddress)) return 'Company name and address are required for company accounts.';
 
         const isCleaner = userKind.includes('Cleaner');
         if (isCleaner) {
-            if (!formData.nin) return 'National Identification Number (NIN) is required for cleaners.';
-            if (formData.nin.length !== 11) return 'NIN must be 11 digits.';
-            
+            if (!formData.nin || formData.nin.length !== 11) return 'NIN must be 11 digits.';
             const cleanerFields = formData.experience && Number(formData.experience) > 0 && selectedServices.length > 0 && formData.bio && profilePhoto;
             if (!cleanerFields) return 'Please fill in all required cleaner information fields.';
-            
             const hasPricing = Number(formData.chargeHourly) > 0 || Number(formData.chargeDaily) > 0 || Number(formData.chargePerContract) > 0 || chargePerContractNegotiable;
             if (!hasPricing) return 'At least one pricing option is required.';
-            
-            if (!formData.bankName || !formData.accountNumber) return 'Bank details are required for cleaners.';
-            if (formData.accountNumber.length !== 10) return 'Account number must be 10 digits.';
-            
+            if (!formData.bankName || !formData.accountNumber || formData.accountNumber.length !== 10) return 'Valid bank details are required.';
             if (isCompany && !businessRegFile) return 'Business registration document is required for company cleaners.';
         }
         return null;
@@ -171,17 +160,23 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        e.stopPropagation(); // 1. Stops the "Ghost" click from bubbling up
+        e.stopPropagation();
 
-        if (submitting) return; // 2. Blocks double-clicks instantly
-        
+        // 🛡️ SAFETY CHECK: Check the Ref (Instant)
+        if (isSubmittingRef.current) {
+            console.log('🛑 Blocked double submission');
+            return;
+        }
+
         const validationError = validateForm();
         if (validationError) {
             setFeedbackMsg({ type: 'error', text: validationError });
             return;
         }
 
-        setSubmitting(true);
+        // 🔒 LOCK THE FORM INSTANTLY
+        isSubmittingRef.current = true; 
+        setSubmitting(true); // Update UI
         setFeedbackMsg(null);
 
         const isCleaner = userKind.includes('Cleaner');
@@ -191,8 +186,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
         const clientType = !isCleaner ? (isCompany ? 'Company' : 'Individual') : undefined;
 
         const payload = new FormData();
-        
-        // BASIC USER INFORMATION
         payload.append('fullName', sanitizeInput(formData.fullName));
         payload.append('email', formData.email);
         payload.append('password', 'defaultPassword123!');
@@ -203,98 +196,63 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
         payload.append('address', sanitizeInput(formData.address));
         payload.append('role', role);
         
-        if (formData.city === 'Other') {
-            payload.append('otherCity', sanitizeInput(formData.otherCity || ''));
-        }
-
-        // FILE UPLOADS
+        if (formData.city === 'Other') payload.append('otherCity', sanitizeInput(formData.otherCity || ''));
         if (governmentIdFile) {
-            // Append to both field names for compatibility
             payload.append('idDocument', governmentIdFile);
             payload.append('governmentId', governmentIdFile);
         }
-
-        // COMPANY INFORMATION
         if (isCompany) {
             payload.append('companyName', sanitizeInput(formData.companyName));
             payload.append('companyAddress', sanitizeInput(formData.companyAddress));
         }
-
-        // CLIENT-SPECIFIC FIELDS
-        if (role === 'client') {
-            payload.append('clientType', clientType || 'Individual');
-        }
-
-        // CLEANER-SPECIFIC FIELDS
+        if (role === 'client') payload.append('clientType', clientType || 'Individual');
+        
         if (role === 'cleaner') {
             payload.append('cleanerType', cleanerType || 'Individual');
             payload.append('experience', formData.experience);
             payload.append('bio', sanitizeInput(formData.bio));
             payload.append('nin', formData.nin);
-            
-            // SERVICES
-            if (selectedServices.length > 0) {
-                selectedServices.forEach(service => {
-                    payload.append('services', service);
-                });
-            }
-            
-            // FILE UPLOADS FOR CLEANER
-            if (profilePhoto) {
-                payload.append('profilePhoto', profilePhoto);
-            }
-            
-            if (businessRegFile && isCompany) {
-                payload.append('businessRegDoc', businessRegFile);
-            }
-            
-            // PRICING
+            if (selectedServices.length > 0) selectedServices.forEach(service => payload.append('services', service));
+            if (profilePhoto) payload.append('profilePhoto', profilePhoto);
+            if (businessRegFile && isCompany) payload.append('businessRegDoc', businessRegFile);
             payload.append('chargeHourly', formData.chargeHourly);
             payload.append('chargeDaily', formData.chargeDaily);
             payload.append('chargePerContract', formData.chargePerContract);
             payload.append('chargePerContractNegotiable', String(chargePerContractNegotiable));
-            
-            // BANK DETAILS
             payload.append('bankName', sanitizeInput(formData.bankName));
             payload.append('accountNumber', formData.accountNumber);
         }
 
         try {
-            console.log('🚀 Sending registration request via apiService...');
-            
-            // ✅ Use apiService.register instead of manual fetch
-            // This handles the URL, headers, and error parsing correctly
+            console.log('🚀 Sending registration request...');
             const data = await apiService.register(payload);
-
             console.log('✅ Registration successful:', data);
 
-            // Reconstruct user object for local state if needed
             const returnedUser: User = data.user || {
                 id: String(Date.now()),
                 role,
                 email: formData.email,
                 fullName: formData.fullName,
-                // ... fallback data just in case
             };
             
-            // SAFE NAVIGATION
+            setFeedbackMsg({ type: 'success', text: 'Account created! Redirecting...' });
+            
             if (onComplete) {
-                onComplete(returnedUser);
-            } else {
-                console.warn('onComplete prop is missing!');
-                setFeedbackMsg({ type: 'success', text: 'Account created! Redirecting...' });
+                // Small delay to ensure user sees success message
+                setTimeout(() => onComplete(returnedUser), 1500);
             }
 
         } catch (err: any) {
-            // 4. Handle API Errors (Now simpler because apiService handles details)
             console.error('❌ SIGNUP ERROR:', err);
             setFeedbackMsg({ 
                 type: 'error', 
                 text: err.message || 'Registration failed. Please try again.'
             });
-        } finally {
+            // Only unlock if there was an error
+            isSubmittingRef.current = false;
             setSubmitting(false);
         }
+        // Note: We DO NOT unlock in finally() on success, because we want to stay locked while redirecting
     };
 
     const isFormValid = () => !validateForm();
@@ -500,6 +458,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
                     )}
 
                     <form onSubmit={handleSubmit} className="divide-y divide-gray-200">
+                        {/* FormSection children omitted for brevity, they are handled by the logic above */}
                         <FormSection title="Account Type & Personal Information" description="Start by telling us who you are.">
                            <div className="sm:col-span-6">
                                 <label htmlFor="userKind" className="block text-sm font-medium text-gray-700">Type of User *</label>
