@@ -8,7 +8,7 @@ export interface Review {
 }
 
 export interface Cleaner {
-  id: string; // FIX: Changed from number to string to match UUID
+  id: string;
   name: string;
   photoUrl: string;
   rating: number;
@@ -49,7 +49,7 @@ export interface Booking {
   clientName: string;
   cleanerName: string;
   clientId: string;
-  cleanerId: string; // FIX: Changed from number to string to match UUID
+  cleanerId: string;
   reviewSubmitted?: boolean;
   paymentMethod: 'Escrow' | 'Direct';
   paymentStatus: 'Pending Payment' | 'Pending Admin Confirmation' | 'Confirmed' | 'Pending Payout' | 'Paid' | 'Not Applicable';
@@ -69,6 +69,10 @@ export interface User {
   city: string;
   otherCity?: string;
   address: string;
+  
+  // ✅ ADDED: This allows the Header to see the profile picture
+  photoUrl?: string;
+
   selfie?: File;
   governmentId?: File;
   clientType?: 'Individual' | 'Company';
