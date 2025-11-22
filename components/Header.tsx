@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, View } from '../types';
 
 // --------------------
-// Internal Icons (Inlined to prevent crashes)
+// Internal Icons
 // --------------------
 const LogoIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -16,16 +16,6 @@ const MenuIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const UserCircleIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-    <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
-  </svg>
-);
-
-// --------------------
-// Header Component
-// --------------------
-
 interface HeaderProps {
     user: User | null;
     onNavigate: (view: View) => void;
@@ -36,8 +26,14 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ user, onNavigate, onLogout, onNavigateToAuth }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+    // Track image loading errors
+    const [imageError, setImageError] = useState(false);
 
-    // Helper to get initials (e.g., "James Bade" -> "JB")
+    // Reset error state when user changes
+    useEffect(() => {
+        setImageError(false);
+    }, [user?.photoUrl]);
+
     const getInitials = (name: string) => {
         return name
             .split(' ')
@@ -52,6 +48,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onNavigate, onLogout, onNa
         setIsMobileMenuOpen(false);
         setIsProfileMenuOpen(false);
     };
+
+    // DEBUG: Log the photo URL to verify it exists
+    if (user && user.photoUrl) {
+        // console.log("Header attempting to load:", user.photoUrl);
+    }
 
     return (
         <header className="bg-white shadow-sm sticky top-0 z-50">
@@ -80,17 +81,16 @@ export const Header: React.FC<HeaderProps> = ({ user, onNavigate, onLogout, onNa
                                     onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                                     className="flex items-center space-x-2 focus:outline-none"
                                 >
-                                    <div className="h-9 w-9 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center">
-                                        {/* ✅ FIXED: Check for photoUrl. If missing, show Initials */}
-                                        {user.photoUrl ? (
+                                    <div className="h-9 w-9 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center relative">
+                                        {/* ✅ FIXED: Smart Fallback Logic */}
+                                        {user.photoUrl && !imageError ? (
                                             <img 
                                                 src={user.photoUrl} 
                                                 alt={user.fullName} 
                                                 className="h-full w-full object-cover"
                                                 onError={(e) => {
-                                                    // Fallback if image URL is broken
-                                                    (e.target as HTMLImageElement).style.display = 'none'; 
-                                                    // The parent div background will show (could imply initials logic here too if restructure)
+                                                    console.error("Image failed to load:", user.photoUrl);
+                                                    setImageError(true); // Trigger fallback
                                                 }}
                                             />
                                         ) : (
@@ -170,13 +170,3 @@ export const Header: React.FC<HeaderProps> = ({ user, onNavigate, onLogout, onNa
         </header>
     );
 };
-```
-
-### 🚀 Deploy the Fix
-1.  **Update Types:** Add `photoUrl?: string;` to your `types.ts`.
-2.  **Update Component:** Paste the code above into `src/components/Header.tsx`.
-3.  **Push:**
-    ```bash
-    git add src/types.ts src/components/Header.tsx
-    git commit -m "Fix header profile image display"
-    git push origin main
