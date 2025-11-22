@@ -1,13 +1,10 @@
 // File: src/services/apiService.ts
 
 /**
- * ✅ Base URL configuration:
- * Uses Vite environment variable (for Vercel deployment)
- * Falls back to localhost for local development.
- * * NOTE: Ensure Vercel Environment Variable is named VITE_API_URL
+ * ✅ HARDCODED URL for Stability
+ * We are temporarily removing the env check to guarantee Vercel connects to Render.
  */
-const API_BASE_URL = 
-  (import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'http://localhost:5000') + '/api';
+const API_BASE_URL = 'https://cleanconnect-backend-mzc4.onrender.com/api';
 
 /**
  * Retrieves the authentication token from localStorage.
