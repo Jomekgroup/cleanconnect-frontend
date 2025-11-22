@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { User, UserRole, View } from '../types';
 import { NIGERIA_LOCATIONS } from '../constants/locations';
 import { CLEANING_SERVICES } from '../constants/services';
+// ✅ Import the robust API service we created
+import { apiService } from '../services/apiService';
 
 interface SignupFormProps {
     email: string;
@@ -65,11 +67,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ email, onComplete, onNav
     const [cities, setCities] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [feedbackMsg, setFeedbackMsg] = useState<FeedbackMessage | null>(null);
-
-    // Get the base URL from env, remove trailing slash if present
-const ENV_URL = ((import.meta.env as any).VITE_API_URL || 'https://cleanconnect-backend-mzc4.onrender.com').replace(/\/$/, '');
-// Ensure we always append /api
-const API_BASE = `${ENV_URL}/api`;
 
     // Constants for validation
     const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -260,33 +257,13 @@ const API_BASE = `${ENV_URL}/api`;
         }
 
         try {
-            console.log('🚀 Sending registration request...');
+            console.log('🚀 Sending registration request via apiService...');
             
-            const res = await fetch(`${API_BASE}/auth/register`, {
-                method: 'POST',
-                body: payload,
-            });
+            // ✅ Use apiService.register instead of manual fetch
+            // This handles the URL, headers, and error parsing correctly
+            const data = await apiService.register(payload);
 
-            const responseText = await res.text();
-            
-            // 1. Handle Non-200 responses (Server Logic Errors)
-            if (!res.ok) {
-                console.error('❌ Server error raw:', responseText);
-                let errText = 'Registration failed';
-                try {
-                    const json = JSON.parse(responseText);
-                    errText = json.message || errText;
-                } catch (e) {
-                    errText = responseText || errText;
-                }
-                setFeedbackMsg({ type: 'error', text: errText });
-                setSubmitting(false);
-                return;
-            }
-
-            // 2. Handle Success
-            console.log('✅ 201 Created received!');
-            const data = JSON.parse(responseText);
+            console.log('✅ Registration successful:', data);
 
             // Reconstruct user object for local state if needed
             const returnedUser: User = data.user || {
@@ -294,30 +271,23 @@ const API_BASE = `${ENV_URL}/api`;
                 role,
                 email: formData.email,
                 fullName: formData.fullName,
-                // ... partial fallback data ...
+                // ... fallback data just in case
             };
             
-            // 3. SAFE NAVIGATION
-            // We wrap this in a separate try-catch so it doesn't trigger the "Server Error" msg
-            try {
-                if (onComplete) {
-                    onComplete(returnedUser);
-                } else {
-                    console.warn('onComplete prop is missing!');
-                    setFeedbackMsg({ type: 'success', text: 'Account created! (Navigation missing)' });
-                }
-            } catch (navError) {
-                console.error('❌ Navigation/State update error:', navError);
-                // Even if navigation fails, tell the user account was created
+            // SAFE NAVIGATION
+            if (onComplete) {
+                onComplete(returnedUser);
+            } else {
+                console.warn('onComplete prop is missing!');
                 setFeedbackMsg({ type: 'success', text: 'Account created! Redirecting...' });
             }
 
-        } catch (err) {
-            // 4. The "Real" Network Error (Internet down, DNS failure, etc)
-            console.error('❌ NETWORK ERROR:', err);
+        } catch (err: any) {
+            // 4. Handle API Errors (Now simpler because apiService handles details)
+            console.error('❌ SIGNUP ERROR:', err);
             setFeedbackMsg({ 
                 type: 'error', 
-                text: `Network Error: ${err instanceof Error ? err.message : 'Check your internet connection'}` 
+                text: err.message || 'Registration failed. Please try again.'
             });
         } finally {
             setSubmitting(false);
