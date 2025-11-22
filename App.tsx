@@ -512,12 +512,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-```
-
-### 🚀 Deploy the Fix
-1.  **Update:** Replace `src/App.tsx` with the code above.
-2.  **Push:**
-    ```bash
-    git add src/App.tsx
-    git commit -m "Fix double registration in App.tsx"
-    git push origin main
